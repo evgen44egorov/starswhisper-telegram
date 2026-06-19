@@ -41,6 +41,8 @@ class PaymentSettingsTests(unittest.TestCase):
         stars_test = make_settings(PAYMENTS_MODE="stars_test")
         self.assertEqual(effective_price("personal_question", demo), 350)
         self.assertEqual(effective_price("personal_question", stars_test), 1)
+        self.assertEqual(effective_price("natal_chart", demo), 900)
+        self.assertEqual(effective_price("natal_chart", stars_test), 1)
         self.assertIn("реальное списание одной звезды", payment_note("personal_question", stars_test))
 
     def test_live_mode_requires_support(self) -> None:

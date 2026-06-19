@@ -91,6 +91,18 @@ async def process_paid_order(order: Order, telegram_id: int) -> AIResult:
                 current_date=date.today(),
             )
         )
+    elif order.service_code == "natal_chart":
+        result = await run_with_one_retry(
+            lambda: service.generate_natal_chart(
+                profile=profile,
+                focus=str(data.get("focus", "Полная карта")),
+                subfocus=str(data.get("subfocus", "Баланс всех сфер")),
+                life_stage=str(data.get("life_stage", "Стабильный период")),
+                time_accuracy=str(data.get("time_accuracy", "Время неизвестно")),
+                time_period=(str(data["time_period"]) if data.get("time_period") else None),
+                current_date=date.today(),
+            )
+        )
     else:
         raise OrderProcessingError("Неизвестная услуга заказа")
 

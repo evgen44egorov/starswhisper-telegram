@@ -3,7 +3,8 @@ from datetime import datetime
 
 from bot.database.models import Order
 from bot.handlers.orders import extract_order_id
-from bot.services.orders import format_order_card, parse_order_input
+from bot.services.orders import format_order_card, format_order_input, parse_order_input
+from bot.services.results import format_order_result_chunks
 
 
 def make_order(**overrides: object) -> Order:
@@ -41,7 +42,26 @@ class OrderFormattingTests(unittest.TestCase):
         self.assertIsNone(extract_order_id("orders:view:wrong"))
         self.assertIsNone(extract_order_id(None))
 
+    def test_formats_natal_order_input(self) -> None:
+        order = make_order(
+            service_code="natal_chart",
+            input_data_json=(
+                '{"profile":{"birth_date":"1996-08-14","birth_time":"09:07",'
+                '"birth_place":"Тбилиси"},"focus":"Работа и реализация"}'
+            ),
+        )
+        text = format_order_input(order)
+        self.assertIn("09:07", text)
+        self.assertIn("Работа и реализация", text)
+
+    def test_long_result_is_split_without_losing_footer(self) -> None:
+        order = make_order(service_code="natal_chart", public_id="N-LONG")
+        chunks = format_order_result_chunks(order, ("Большой раздел <карты>. " * 500))
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(chunk) <= 4096 for chunk in chunks))
+        self.assertIn("N-LONG", chunks[-1])
+        self.assertTrue(any("&lt;карты&gt;" in chunk for chunk in chunks))
+
 
 if __name__ == "__main__":
     unittest.main()
-

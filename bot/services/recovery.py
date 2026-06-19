@@ -9,7 +9,8 @@ from bot.database.repositories import (
 )
 from bot.keyboards.main_menu import main_menu_keyboard
 from bot.services.admin import notify_admin
-from bot.services.order_processor import format_paid_result, process_paid_order
+from bot.services.order_processor import process_paid_order
+from bot.services.results import send_order_result
 from bot.texts.ru import PAYMENT_GENERATION_FAILED_TEXT
 
 logger = logging.getLogger(__name__)
@@ -56,10 +57,13 @@ async def recover_paid_orders(bot: Bot) -> int:
 
         completed += 1
         try:
-            await bot.send_message(
-                item.telegram_id,
-                format_paid_result(order, result.text),
+            await send_order_result(
+                bot=bot,
+                chat_id=item.telegram_id,
+                order=order,
+                result_text=result.text,
                 reply_markup=main_menu_keyboard(),
+                is_demo=result.is_demo,
             )
         except Exception:
             logger.exception(

@@ -15,11 +15,14 @@ from bot.services.prompts import (
     DAILY_FORECAST_PROMPT_VERSION,
     MONTHLY_FORECAST_INSTRUCTIONS,
     MONTHLY_FORECAST_PROMPT_VERSION,
+    NATAL_CHART_INSTRUCTIONS,
+    NATAL_CHART_PROMPT_VERSION,
     PERSONAL_QUESTION_INSTRUCTIONS,
     PERSONAL_QUESTION_PROMPT_VERSION,
     build_compatibility_input,
     build_daily_forecast_input,
     build_monthly_forecast_input,
+    build_natal_chart_input,
     build_personal_question_input,
 )
 from bot.utils.zodiac import get_zodiac_element, get_zodiac_sign
@@ -183,13 +186,67 @@ class AstrobotAIService:
             is_demo=False,
         )
 
+    async def generate_natal_chart(
+        self,
+        profile: Profile,
+        focus: str,
+        subfocus: str,
+        life_stage: str,
+        time_accuracy: str,
+        time_period: str | None,
+        current_date: date,
+    ) -> AIResult:
+        provider = self._get_provider()
+        if provider == "demo":
+            return AIResult(
+                text=_build_demo_natal_chart(
+                    profile,
+                    focus,
+                    subfocus,
+                    life_stage,
+                    time_accuracy,
+                    time_period,
+                ),
+                provider="demo",
+                model="local-template",
+                prompt_version=NATAL_CHART_PROMPT_VERSION,
+                is_demo=True,
+            )
+        result_text = await self._generate_openai(
+            instructions=NATAL_CHART_INSTRUCTIONS,
+            input_text=build_natal_chart_input(
+                profile=profile,
+                focus=focus,
+                subfocus=subfocus,
+                life_stage=life_stage,
+                time_accuracy=time_accuracy,
+                time_period=time_period,
+                current_date=current_date,
+            ),
+            max_output_tokens=max(self.settings.ai_max_output_tokens, 2400),
+            max_chars=8500,
+        )
+        return AIResult(
+            text=result_text,
+            provider="openai",
+            model=self.settings.ai_model,
+            prompt_version=NATAL_CHART_PROMPT_VERSION,
+            is_demo=False,
+        )
+
     def _get_provider(self) -> str:
         provider = self.settings.ai_provider.strip().lower()
         if provider not in {"demo", "openai"}:
             raise AIServiceError(f"Неизвестный AI-провайдер: {provider}")
         return provider
 
-    async def _generate_openai(self, instructions: str, input_text: str) -> str:
+    async def _generate_openai(
+        self,
+        instructions: str,
+        input_text: str,
+        max_output_tokens: int | None = None,
+        max_chars: int = 3400,
+    ) -> str:
         api_key = (
             self.settings.ai_api_key.get_secret_value().strip()
             if self.settings.ai_api_key
@@ -209,9 +266,11 @@ class AstrobotAIService:
                         model=self.settings.ai_model,
                         instructions=instructions,
                         input=input_text,
-                        max_output_tokens=self.settings.ai_max_output_tokens,
+                        max_output_tokens=(
+                            max_output_tokens or self.settings.ai_max_output_tokens
+                        ),
                     )
-                    result_text = _clean_result(response.output_text)
+                    result_text = _clean_result(response.output_text, max_chars=max_chars)
                     if not result_text:
                         raise AIServiceError("AI вернул пустой ответ")
                     return result_text
@@ -231,10 +290,10 @@ class AstrobotAIService:
         raise AIServiceError("Не удалось создать прогноз")
 
 
-def _clean_result(value: str | None) -> str:
+def _clean_result(value: str | None, max_chars: int = 3400) -> str:
     text = (value or "").strip().replace("**", "").replace("__", "")
-    if len(text) > 3400:
-        text = text[:3400].rsplit(" ", maxsplit=1)[0].rstrip() + "…"
+    if len(text) > max_chars:
+        text = text[:max_chars].rsplit(" ", maxsplit=1)[0].rstrip() + "…"
     return text
 
 
@@ -420,3 +479,64 @@ def _build_demo_monthly_forecast(
 
 ✨ Итог
 Этот месяц не требует идеальности. Твоя опора — последовательные действия, ясные границы и готовность менять темп, когда реальность дает новую информацию."""
+
+
+def _build_demo_natal_chart(
+    profile: Profile,
+    focus: str,
+    subfocus: str,
+    life_stage: str,
+    time_accuracy: str,
+    time_period: str | None,
+) -> str:
+    sign = get_zodiac_sign(profile.birth_date)
+    time_note = (
+        f"Время рождения указано как {profile.birth_time:%H:%M}."
+        if profile.birth_time
+        else "Точное время рождения неизвестно."
+    )
+    place_note = profile.birth_place or "место рождения не указано"
+    period_note = f" Известное время суток: {time_period}." if time_period else ""
+    return f"""🪐 Натальная карта для {profile.name}
+
+✨ Важное уточнение
+Это демонстрационный символический астропортрет по солнечному знаку {sign} и доступным данным рождения. {time_note} Точность времени: {time_accuracy}.{period_note} Место: {place_note}. Точные положения планет, дома, аспекты и Асцендент здесь не рассчитываются.
+
+💫 Ядро личности
+В твоем характере может сочетаться стремление сохранять собственный внутренний ритм с потребностью видеть смысл в происходящем. Для тебя особенно важно не просто выполнять задачи, а понимать, зачем они нужны и насколько согласуются с твоими ценностями. Сильнее всего ты раскрываешься там, где можешь действовать осознанно, а не только реагировать на ожидания окружающих.
+
+🌙 Эмоциональная природа
+Чувства могут становиться яснее не мгновенно, а после небольшой паузы. В напряженных ситуациях тебе полезно сначала вернуть ощущение опоры, затем называть переживание и только потом принимать решение. Безопасность укрепляют предсказуемые договоренности, уважение границ и право не давать немедленный ответ.
+
+🔥 Сильные стороны
+• способность замечать смысл и общую картину;
+• верность важным для тебя людям и принципам;
+• умение учиться на опыте;
+• чувствительность к атмосфере общения;
+• потенциал соединять интуицию с практическим шагом;
+• способность поддерживать других без громких обещаний.
+
+🪞 Теневые сценарии
+Иногда высокая внутренняя планка может превращаться в сомнение: достаточно ли хорошо ты справляешься. Возможны попытки долго готовиться вместо начала, брать на себя чужое настроение или ждать полной уверенности перед простым действием. Это не неизменные черты, а сценарии, которые легче замечать и корректировать постепенно.
+
+💌 Любовь и отношения
+В близости тебе может быть важно сочетание тепла и свободы оставаться собой. Недосказанность способна вызывать больше напряжения, чем честный спокойный разговор. Полезно прямо обсуждать ожидания, способы поддержки и личное пространство, не пытаясь заранее угадать мысли другого человека.
+
+💼 Работа и реализация
+Тебе могут подходить роли, где есть понятная польза, пространство для самостоятельности и возможность развивать мастерство. Сложнее становится в среде постоянной хаотичной срочности или неясных правил. Главный фокус этого разбора — «{focus}», уточнение — «{subfocus}». Текущий жизненный этап: «{life_stage}». Ищи не идеальную роль, а условия, в которых твои сильные стороны проявляются регулярно.
+
+💰 Деньги и ценность
+Финансовая устойчивость поддерживается ясными бытовыми правилами, а не эмоциональными рывками. Полезно отделять желание порадовать себя от попытки снять напряжение покупкой и сверять крупные решения с заранее выбранным бюджетом. Это не инвестиционная рекомендация, а приглашение лучше замечать собственный денежный стиль.
+
+🧭 Жизненное направление
+Важной темой развития может быть переход от внешнего подтверждения к более устойчивой внутренней оценке. Чем яснее ты понимаешь свои приоритеты, тем проще выбирать проекты, отношения и обязательства без ощущения, что нужно соответствовать всем сразу.
+
+🌱 Практические рекомендации
+1. Запиши три условия, в которых ты работаешь и живешь лучше всего.
+2. Раз в неделю проверяй, какие обязательства действительно остаются твоими.
+3. В важном разговоре формулируй одну конкретную просьбу вместо намека.
+4. Отделяй факты от предположений перед значимым решением.
+5. Оставляй в расписании время без внешних требований.
+
+✨ Итог
+Эта карта — не рамка и не предсказание. Используй ее как набор вопросов и ориентиров, которые помогают внимательнее понимать свои реакции, силу и направление роста."""

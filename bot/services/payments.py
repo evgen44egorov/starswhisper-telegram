@@ -43,6 +43,12 @@ PAYMENT_CATALOG = {
         price_stars=400,
         public_id_prefix="M",
     ),
+    "natal_chart": PaymentSpec(
+        title="Натальная карта",
+        description="Глубокий символический астропортрет по данным рождения.",
+        price_stars=900,
+        public_id_prefix="N",
+    ),
 }
 
 

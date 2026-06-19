@@ -3,7 +3,6 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.keyboards.main_menu import (
     HELP_BUTTON,
-    NATAL_BUTTON,
     main_menu_keyboard,
     services_keyboard,
 )
@@ -29,13 +28,6 @@ async def service_callback(callback: CallbackQuery) -> None:
     text = SERVICE_STUBS.get(service, SERVICES_TEXT)
     if isinstance(callback.message, Message):
         await show_screen(callback.message, text, reply_markup=main_menu_keyboard())
-
-
-@router.message(F.text == NATAL_BUTTON)
-async def natal_menu(message: Message) -> None:
-    await show_screen(
-        message, SERVICE_STUBS["natal"], reply_markup=main_menu_keyboard()
-    )
 
 
 @router.message(F.text == HELP_BUTTON)

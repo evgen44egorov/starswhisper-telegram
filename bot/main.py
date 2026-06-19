@@ -13,6 +13,7 @@ from bot.handlers.compatibility import router as compatibility_router
 from bot.handlers.forecast import router as forecast_router
 from bot.handlers.menu import router as menu_router
 from bot.handlers.monthly import router as monthly_router
+from bot.handlers.natal import router as natal_router
 from bot.handlers.orders import router as orders_router
 from bot.handlers.payments import router as payments_router
 from bot.handlers.profile import router as profile_router
@@ -47,6 +48,7 @@ async def main() -> None:
     dispatcher.include_router(question_router)
     dispatcher.include_router(compatibility_router)
     dispatcher.include_router(monthly_router)
+    dispatcher.include_router(natal_router)
     dispatcher.include_router(payments_router)
     dispatcher.include_router(orders_router)
     dispatcher.include_router(support_router)

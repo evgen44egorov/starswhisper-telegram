@@ -52,7 +52,7 @@ class RecoveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(completed, 1)
         bot.send_message.assert_awaited_once()
-        self.assertIn("Готовый результат", bot.send_message.await_args.args[1])
+        self.assertIn("Готовый результат", bot.send_message.await_args.kwargs["text"])
 
     async def test_failed_recovery_marks_order_failed(self) -> None:
         bot = AsyncMock()

@@ -13,7 +13,8 @@ from bot.database.repositories import (
 from bot.keyboards.main_menu import main_menu_keyboard
 from bot.services.admin import notify_admin
 from bot.services.order_processor import format_paid_result, process_paid_order
-from bot.services.screens import show_screen
+from bot.services.results import send_order_result
+from bot.services.screens import clear_screen, remember_screen, show_screen
 from bot.texts.ru import (
     PAYMENT_ALREADY_PROCESSED_TEXT,
     PAYMENT_ERROR_TEXT,
@@ -118,11 +119,23 @@ async def successful_payment_handler(message: Message) -> None:
     )
     try:
         result = await process_paid_order(order, message.from_user.id)
-        await show_screen(
-            progress_message,
-            format_paid_result(order, result.text),
-            reply_markup=main_menu_keyboard(),
-        )
+        if order.service_code == "natal_chart":
+            await clear_screen(progress_message)
+            last_message = await send_order_result(
+                bot=progress_message.bot,
+                chat_id=progress_message.chat.id,
+                order=order,
+                result_text=result.text,
+                reply_markup=main_menu_keyboard(),
+                is_demo=result.is_demo,
+            )
+            remember_screen(last_message)
+        else:
+            await show_screen(
+                progress_message,
+                format_paid_result(order, result.text),
+                reply_markup=main_menu_keyboard(),
+            )
     except Exception as error:
         logger.exception("Ошибка генерации оплаченного заказа")
         await fail_order(order.id, type(error).__name__)

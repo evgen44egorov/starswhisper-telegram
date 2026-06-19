@@ -17,9 +17,10 @@ from bot.keyboards.orders import (
     order_result_keyboard,
     orders_list_keyboard,
 )
-from bot.services.orders import format_order_card, service_label
+from bot.services.orders import format_order_card
 from bot.services.payments import PaymentServiceError, send_existing_stars_invoice
-from bot.services.screens import show_screen
+from bot.services.results import send_order_result
+from bot.services.screens import clear_screen, remember_screen, show_screen
 from bot.texts.ru import (
     ORDERS_EMPTY_TEXT,
     ORDERS_LIST_TEXT,
@@ -27,7 +28,6 @@ from bot.texts.ru import (
     ORDER_DELETE_CONFIRM_TEXT,
     ORDER_NOT_FOUND_TEXT,
 )
-from bot.utils.telegram import escape_and_limit
 
 router = Router(name="orders")
 
@@ -129,17 +129,16 @@ async def order_result_callback(callback: CallbackQuery) -> None:
         )
         return
 
-    demo_note = (
-        "\n\n<i>🧪 Результат создан демонстрационным генератором.</i>"
-        if order.provider == "demo"
-        else ""
-    )
-    await show_screen(
-        callback.message,
-        f"{escape_and_limit(order.result_text)}{demo_note}\n\n"
-        f"<i>{service_label(order.service_code)} · {escape(order.public_id)}</i>",
+    await clear_screen(callback.message)
+    last_message = await send_order_result(
+        bot=callback.message.bot,
+        chat_id=callback.message.chat.id,
+        order=order,
+        result_text=order.result_text,
         reply_markup=order_result_keyboard(order.id),
+        is_demo=order.provider == "demo",
     )
+    remember_screen(last_message)
 
 
 @router.callback_query(F.data.startswith("orders:pay:"))

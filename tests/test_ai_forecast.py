@@ -8,6 +8,7 @@ from bot.services.prompts import (
     build_compatibility_input,
     build_daily_forecast_input,
     build_monthly_forecast_input,
+    build_natal_chart_input,
     build_personal_question_input,
 )
 from bot.utils.months import first_day_of_next_month, format_month_period
@@ -70,6 +71,23 @@ class ForecastPromptTests(unittest.TestCase):
         )
         self.assertIn('"период": "июль 2026"', prompt)
         self.assertIn('"главный_фокус": "Работа"', prompt)
+
+    def test_natal_data_and_focus_are_serialized(self) -> None:
+        profile = Profile(name="Анна", birth_date=date(1996, 8, 14))
+        prompt = build_natal_chart_input(
+            profile=profile,
+            focus="Работа и реализация",
+            subfocus="Смена работы",
+            life_stage="Переживаю перемены",
+            time_accuracy="Время неизвестно",
+            time_period="Утро, 06:00–11:59",
+            current_date=date(2026, 6, 19),
+        )
+        self.assertIn('"солнечный_знак": "Лев"', prompt)
+        self.assertIn('"главный_фокус": "Работа и реализация"', prompt)
+        self.assertIn('"время_рождения": "неизвестно"', prompt)
+        self.assertIn('"уточнение_фокуса": "Смена работы"', prompt)
+        self.assertIn('"текущий_жизненный_этап": "Переживаю перемены"', prompt)
 
 
 class DemoForecastTests(unittest.IsolatedAsyncioTestCase):
@@ -143,6 +161,28 @@ class DemoForecastTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.is_demo)
         self.assertIn("июль 2026", result.text)
         self.assertIn("Работа", result.text)
+
+    async def test_demo_natal_chart(self) -> None:
+        settings = Settings(
+            BOT_TOKEN="test-token-longer-than-20-characters",
+            AI_PROVIDER="demo",
+            _env_file=None,
+        )
+        profile = Profile(name="Анна", birth_date=date(1996, 8, 14))
+        result = await AstrobotAIService(settings).generate_natal_chart(
+            profile=profile,
+            focus="Самопознание и рост",
+            subfocus="Личные границы",
+            life_stage="Ищу опору и ясность",
+            time_accuracy="Время неизвестно",
+            time_period=None,
+            current_date=date(2026, 6, 19),
+        )
+        self.assertTrue(result.is_demo)
+        self.assertIn("Натальная карта для Анна", result.text)
+        self.assertIn("Самопознание и рост", result.text)
+        self.assertIn("Личные границы", result.text)
+        self.assertIn("точные положения планет", result.text.lower())
 
 
 class QuestionSafetyTests(unittest.TestCase):

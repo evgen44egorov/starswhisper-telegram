@@ -14,10 +14,11 @@ from bot.database.admin import (
     list_admin_orders,
 )
 from bot.database.repositories import fail_order
+from bot.keyboards.main_menu import main_menu_keyboard
 from bot.services.admin import format_admin_order, format_admin_user, is_admin
 from bot.services.order_processor import process_paid_order
 from bot.services.orders import service_label, status_label
-from bot.utils.telegram import escape_and_limit
+from bot.services.results import send_order_result
 
 logger = logging.getLogger(__name__)
 router = Router(name="admin")
@@ -105,11 +106,13 @@ async def admin_commands(message: Message, bot: Bot) -> None:
             return
         try:
             result = await process_paid_order(record.order, record.user.telegram_id)
-            await bot.send_message(
-                record.user.telegram_id,
-                f"{escape_and_limit(result.text)}\n\n"
-                f"<i>{service_label(record.order.service_code)} · "
-                f"заказ {escape(record.order.public_id)}</i>",
+            await send_order_result(
+                bot=bot,
+                chat_id=record.user.telegram_id,
+                order=record.order,
+                result_text=result.text,
+                reply_markup=main_menu_keyboard(),
+                is_demo=result.is_demo,
             )
             await message.answer(f"✅ Заказ {escape(record.order.public_id)} обработан.")
         except Exception as error:
