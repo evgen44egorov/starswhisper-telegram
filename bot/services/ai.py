@@ -1,0 +1,422 @@
+import asyncio
+import hashlib
+import logging
+from dataclasses import dataclass
+from datetime import date
+
+from openai import AsyncOpenAI, OpenAIError
+
+from bot.config import Settings
+from bot.database.models import Profile
+from bot.services.prompts import (
+    COMPATIBILITY_INSTRUCTIONS,
+    COMPATIBILITY_PROMPT_VERSION,
+    DAILY_FORECAST_INSTRUCTIONS,
+    DAILY_FORECAST_PROMPT_VERSION,
+    MONTHLY_FORECAST_INSTRUCTIONS,
+    MONTHLY_FORECAST_PROMPT_VERSION,
+    PERSONAL_QUESTION_INSTRUCTIONS,
+    PERSONAL_QUESTION_PROMPT_VERSION,
+    build_compatibility_input,
+    build_daily_forecast_input,
+    build_monthly_forecast_input,
+    build_personal_question_input,
+)
+from bot.utils.zodiac import get_zodiac_element, get_zodiac_sign
+
+logger = logging.getLogger(__name__)
+
+
+class AIServiceError(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class AIResult:
+    text: str
+    provider: str
+    model: str
+    prompt_version: str
+    is_demo: bool
+
+
+class AstrobotAIService:
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+
+    async def generate_daily_forecast(
+        self,
+        profile: Profile,
+        current_date: date,
+    ) -> AIResult:
+        provider = self._get_provider()
+        if provider == "demo":
+            return AIResult(
+                text=_build_demo_forecast(profile, current_date),
+                provider="demo",
+                model="local-template",
+                prompt_version=DAILY_FORECAST_PROMPT_VERSION,
+                is_demo=True,
+            )
+        result_text = await self._generate_openai(
+            instructions=DAILY_FORECAST_INSTRUCTIONS,
+            input_text=build_daily_forecast_input(profile, current_date),
+        )
+        return AIResult(
+            text=result_text,
+            provider="openai",
+            model=self.settings.ai_model,
+            prompt_version=DAILY_FORECAST_PROMPT_VERSION,
+            is_demo=False,
+        )
+
+    async def generate_personal_question(
+        self,
+        profile: Profile,
+        question_area: str,
+        question_text: str,
+        current_date: date,
+    ) -> AIResult:
+        provider = self._get_provider()
+        if provider == "demo":
+            return AIResult(
+                text=_build_demo_question(profile, question_area, question_text),
+                provider="demo",
+                model="local-template",
+                prompt_version=PERSONAL_QUESTION_PROMPT_VERSION,
+                is_demo=True,
+            )
+
+        result_text = await self._generate_openai(
+            instructions=PERSONAL_QUESTION_INSTRUCTIONS,
+            input_text=build_personal_question_input(
+                profile,
+                question_area,
+                question_text,
+                current_date,
+            ),
+        )
+        return AIResult(
+            text=result_text,
+            provider="openai",
+            model=self.settings.ai_model,
+            prompt_version=PERSONAL_QUESTION_PROMPT_VERSION,
+            is_demo=False,
+        )
+
+    async def generate_compatibility(
+        self,
+        profile: Profile,
+        relationship_type: str,
+        partner_name: str,
+        partner_birth_date: date,
+        partner_birth_time: str | None,
+        partner_birth_place: str | None,
+        current_date: date,
+    ) -> AIResult:
+        provider = self._get_provider()
+        if provider == "demo":
+            return AIResult(
+                text=_build_demo_compatibility(
+                    profile,
+                    relationship_type,
+                    partner_name,
+                    partner_birth_date,
+                ),
+                provider="demo",
+                model="local-template",
+                prompt_version=COMPATIBILITY_PROMPT_VERSION,
+                is_demo=True,
+            )
+
+        result_text = await self._generate_openai(
+            instructions=COMPATIBILITY_INSTRUCTIONS,
+            input_text=build_compatibility_input(
+                profile=profile,
+                relationship_type=relationship_type,
+                partner_name=partner_name,
+                partner_birth_date=partner_birth_date,
+                partner_birth_time=partner_birth_time,
+                partner_birth_place=partner_birth_place,
+                current_date=current_date,
+            ),
+        )
+        return AIResult(
+            text=result_text,
+            provider="openai",
+            model=self.settings.ai_model,
+            prompt_version=COMPATIBILITY_PROMPT_VERSION,
+            is_demo=False,
+        )
+
+    async def generate_monthly_forecast(
+        self,
+        profile: Profile,
+        period: str,
+        area: str,
+        current_date: date,
+    ) -> AIResult:
+        provider = self._get_provider()
+        if provider == "demo":
+            return AIResult(
+                text=_build_demo_monthly_forecast(profile, period, area),
+                provider="demo",
+                model="local-template",
+                prompt_version=MONTHLY_FORECAST_PROMPT_VERSION,
+                is_demo=True,
+            )
+
+        result_text = await self._generate_openai(
+            instructions=MONTHLY_FORECAST_INSTRUCTIONS,
+            input_text=build_monthly_forecast_input(
+                profile,
+                period,
+                area,
+                current_date,
+            ),
+        )
+        return AIResult(
+            text=result_text,
+            provider="openai",
+            model=self.settings.ai_model,
+            prompt_version=MONTHLY_FORECAST_PROMPT_VERSION,
+            is_demo=False,
+        )
+
+    def _get_provider(self) -> str:
+        provider = self.settings.ai_provider.strip().lower()
+        if provider not in {"demo", "openai"}:
+            raise AIServiceError(f"Неизвестный AI-провайдер: {provider}")
+        return provider
+
+    async def _generate_openai(self, instructions: str, input_text: str) -> str:
+        api_key = (
+            self.settings.ai_api_key.get_secret_value().strip()
+            if self.settings.ai_api_key
+            else ""
+        )
+        if not api_key:
+            raise AIServiceError("Для OpenAI не настроен API-ключ")
+
+        client = AsyncOpenAI(
+            api_key=api_key,
+            timeout=self.settings.ai_timeout_seconds,
+        )
+        try:
+            for attempt in range(2):
+                try:
+                    response = await client.responses.create(
+                        model=self.settings.ai_model,
+                        instructions=instructions,
+                        input=input_text,
+                        max_output_tokens=self.settings.ai_max_output_tokens,
+                    )
+                    result_text = _clean_result(response.output_text)
+                    if not result_text:
+                        raise AIServiceError("AI вернул пустой ответ")
+                    return result_text
+                except OpenAIError as error:
+                    logger.warning(
+                        "Ошибка OpenAI при генерации прогноза, попытка %s: %s",
+                        attempt + 1,
+                        type(error).__name__,
+                    )
+                    if attempt == 0:
+                        await asyncio.sleep(1)
+                        continue
+                    raise AIServiceError("Не удалось получить ответ от AI-сервиса") from error
+        finally:
+            await client.close()
+
+        raise AIServiceError("Не удалось создать прогноз")
+
+
+def _clean_result(value: str | None) -> str:
+    text = (value or "").strip().replace("**", "").replace("__", "")
+    if len(text) > 3400:
+        text = text[:3400].rsplit(" ", maxsplit=1)[0].rstrip() + "…"
+    return text
+
+
+def _build_demo_forecast(profile: Profile, current_date: date) -> str:
+    sign = get_zodiac_sign(profile.birth_date)
+    seed = hashlib.sha256(
+        f"{profile.birth_date.isoformat()}:{current_date.isoformat()}".encode()
+    ).digest()[0]
+
+    energy = [
+        "Сегодня лучше двигаться спокойно и замечать детали: одна небольшая подсказка может заметно упростить день.",
+        "День поддерживает ясные намерения. Выбери главное направление и не распыляй внимание на случайные задачи.",
+        "Сегодня особенно полезно сверять решения со своим внутренним ощущением, не торопясь отвечать на внешнее давление.",
+        "В первой половине дня наведи порядок в делах, а во второй оставь пространство для неожиданной полезной идеи.",
+    ][seed % 4]
+    relationships = [
+        "В отношениях сработает простота: задай прямой вопрос и внимательно выслушай ответ, не додумывая за другого человека.",
+        "Теплое проявление внимания окажется важнее длинных объяснений. Хороший день, чтобы спокойно обозначить свои чувства.",
+        "Не спеши оценивать чужую реакцию. Небольшая пауза поможет увидеть мотивы собеседника мягче и точнее.",
+        "Сегодня можно восстановить близость через обычный честный разговор без попытки немедленно решить все вопросы.",
+    ][(seed + 1) % 4]
+    work = [
+        "В работе начни с задачи, которая давно отнимает внимание. Завершение одного дела освободит больше энергии, чем старт трех новых.",
+        "Полезно проверить договоренности и сроки. Твоя сила сегодня в последовательности и ясной формулировке следующего шага.",
+        "Не прячь хорошую идею, но сначала придай ей простую форму. Короткий план поможет получить поддержку окружающих.",
+        "Делай ставку на качество, а не скорость. Спокойная проверка результата убережет от лишнего повторения работы.",
+    ][(seed + 2) % 4]
+    money = [
+        "В денежных вопросах придерживайся заранее выбранного плана и отложи импульсивную покупку хотя бы на несколько часов.",
+        "Сегодня полезно заметить мелкие регулярные расходы. Небольшая корректировка даст ощущение большего контроля.",
+        "Не принимай финансовые решения под влиянием чужой спешки. Сначала собери факты и дай себе время подумать.",
+        "Хороший день для наведения порядка в бюджете, но не для рискованных обещаний или необдуманных обязательств.",
+    ][(seed + 3) % 4]
+    advice = [
+        "Запиши одно важное намерение на день и вечером отметь даже небольшой прогресс.",
+        "Перед важным ответом сделай короткую паузу и три спокойных вдоха.",
+        "Освободи десять минут от уведомлений и доведи до конца одну выбранную задачу.",
+        "Спроси себя: какой самый бережный и реалистичный шаг доступен мне прямо сейчас?",
+    ][(seed + 4) % 4]
+
+    return f"""🔮 Твой прогноз на сегодня, {profile.name}
+
+💫 Главная энергия дня
+Для знака {sign} сегодня важны осознанный темп и внимание к собственным приоритетам. {energy}
+
+💌 Любовь и эмоции
+{relationships}
+
+💼 Работа и дела
+{work}
+
+💰 Деньги
+{money}
+
+🧭 Совет дня
+{advice}"""
+
+
+def _build_demo_question(
+    profile: Profile,
+    question_area: str,
+    question_text: str,
+) -> str:
+    return f"""💌 Ответ на твой вопрос, {profile.name}
+
+📝 Как я понимаю ситуацию
+Твой вопрос относится к сфере «{question_area}»: {question_text}
+
+🔮 Короткий ответ
+Сейчас полезнее не искать единственный заранее определенный исход, а посмотреть, какая часть ситуации действительно находится под твоим влиянием. Ясность может появиться через спокойный разговор, проверку предположений и небольшой следующий шаг.
+
+💫 Что влияет на ситуацию
+На восприятие могут одновременно влиять ожидания, прежний опыт и желание получить определенность как можно быстрее. Чем сильнее внутреннее напряжение, тем легче принять опасение за факт. Отдели то, что уже известно, от того, что пока только предполагается.
+
+🪞 Чего можно не замечать
+Возможно, ты предъявляешь к себе требование решить все сразу. Но ситуация может раскрываться постепенно, и пауза не обязательно означает отказ или неудачу. Иногда она дает возможность увидеть собственные границы и настоящие приоритеты.
+
+🧭 Лучший следующий шаг
+1. Запиши известные факты без оценок.
+2. Сформулируй один прямой вопрос, который можно задать участникам ситуации.
+3. Выбери действие, которое безопасно и выполнимо в ближайшие сутки.
+
+⚠️ Чего лучше избегать
+• решений на пике эмоций;
+• попытки угадать чужие мысли;
+• обещаний, которые тебе трудно выполнить.
+
+✨ Итог
+Твоя опора сейчас — не в точном предсказании, а в способности двигаться бережно, проверять реальность и сохранять право изменить решение, когда появятся новые факты."""
+
+
+def _build_demo_compatibility(
+    profile: Profile,
+    relationship_type: str,
+    partner_name: str,
+    partner_birth_date: date,
+) -> str:
+    user_sign = get_zodiac_sign(profile.birth_date)
+    partner_sign = get_zodiac_sign(partner_birth_date)
+    user_element = get_zodiac_element(user_sign)
+    partner_element = get_zodiac_element(partner_sign)
+
+    if user_element == partner_element:
+        dynamic = "Вам может быть проще узнавать в реакциях друг друга знакомый ритм, хотя похожие слабые места иногда усиливаются."
+    elif {user_element, partner_element} in ({"Огонь", "Воздух"}, {"Земля", "Вода"}):
+        dynamic = "Ваши стили могут естественно поддерживать друг друга: один приносит импульс, другой помогает ему обрести направление и форму."
+    else:
+        dynamic = "Ваши способы реагировать могут заметно различаться, и именно это способно стать как источником интереса, так и поводом учиться переводу с языка одного человека на язык другого."
+
+    return f"""🧩 Совместимость: {profile.name} и {partner_name}
+
+💫 Общая динамика
+Этот символический разбор сопоставляет солнечные знаки {user_sign} и {partner_sign} в контексте отношений «{relationship_type}». {dynamic} Связь лучше оценивать не по одному признаку, а по тому, насколько вы умеете слышать потребности и уважать границы друг друга.
+
+💌 Эмоциональная связь
+Один из вас может быстрее выражать переживания словами или действием, а другому может требоваться пауза. Это не обязательно означает холодность или отсутствие интереса. Полезно заранее обсуждать, какая поддержка действительно нужна каждому.
+
+🗣️ Общение
+Сильной стороной может стать любопытство к чужой точке зрения. Недоразумения вероятнее возникают, когда ожидания остаются невысказанными. Прямые вопросы, конкретные договоренности и отказ от чтения мыслей заметно укрепят контакт.
+
+🔥 Притяжение и интерес
+Различия способны поддерживать интерес, если не превращать их в соревнование. Похожесть, наоборот, дает ощущение узнавания, но требует пространства для индивидуальности.
+
+⚡ Зоны напряжения
+• разный темп принятия решений;
+• ожидание, что другой сам догадается о потребностях;
+• попытка доказать свою правоту вместо поиска общего решения.
+
+🪞 Что важно понять тебе
+Твоя задача не угадать будущее этой связи, а заметить, насколько свободно ты можешь говорить о важном и оставаться собой рядом с другим человеком.
+
+🌙 Что может быть важно второму человеку
+Второму человеку может быть важно чувствовать, что его стиль общения не оценивают заранее. Это лишь возможный сценарий — реальные потребности лучше уточнять в прямом разговоре.
+
+🧭 Как мягче выстраивать контакт
+1. Обсуждайте одну тему за раз.
+2. Проверяйте предположения вопросами.
+3. Формулируйте просьбы конкретно.
+4. Оставляйте друг другу право на паузу.
+
+✨ Итог
+Совместимость не является приговором или гарантией. Это карта возможных различий и точек опоры, а качество связи создается вашими решениями, уважением и готовностью разговаривать."""
+
+
+def _build_demo_monthly_forecast(
+    profile: Profile,
+    period: str,
+    area: str,
+) -> str:
+    sign = get_zodiac_sign(profile.birth_date)
+    return f"""🌙 Прогноз на {period} для {profile.name}
+
+💫 Главная тема месяца
+Для знака {sign} этот символический период предлагает соединить ясный план с вниманием к собственному состоянию. Главный фокус — «{area}». Не стремись получить все ответы в первые дни: полезная картина будет складываться постепенно.
+
+🌒 Первая половина
+Начало месяца подходит для ревизии незавершенных дел и договоренностей. Выбери две основные задачи и освободи им место в расписании. Там, где возникает спешка, сначала проверь факты и только затем отвечай.
+
+🌘 Вторая половина
+Во второй части месяца станет заметнее, какие решения действительно поддерживают твои приоритеты. Это хорошее время для спокойной корректировки курса, завершения лишних обязательств и закрепления полезного ритма.
+
+💌 Любовь и отношения
+Честность будет работать лучше намеков. Говори о своих потребностях конкретно, не приписывая другому человеку заранее известную реакцию. Теплые повседневные проявления внимания могут оказаться важнее больших обещаний.
+
+💼 Работа и дела
+Ставь качество выше количества. Один хорошо оформленный результат поможет больше, чем несколько начатых направлений. В обсуждениях фиксируй договоренности письменно и оставляй время на проверку деталей.
+
+💰 Деньги
+Полезно придерживаться заранее определенного бюджета и замечать небольшие повторяющиеся расходы. Не принимай финансовые решения под влиянием чужого давления или эмоционального импульса.
+
+🧘 Внутреннее состояние
+Поддерживай себя через предсказуемый режим, короткие паузы и уменьшение информационного шума. Усталость не требует немедленного жизненного решения — иногда сначала нужен обычный отдых.
+
+⚠️ Чего лучше избегать
+• обещаний из чувства вины;
+• попытки решить все одновременно;
+• поспешных выводов о мотивах других людей.
+
+🧭 Лучшие действия месяца
+1. Определи один измеримый приоритет.
+2. Раз в неделю проверяй нагрузку и бюджет.
+3. Проведи один честный разговор, который давно откладывался.
+
+✨ Итог
+Этот месяц не требует идеальности. Твоя опора — последовательные действия, ясные границы и готовность менять темп, когда реальность дает новую информацию."""

@@ -1,0 +1,2 @@
+"""Astrobot tests."""
+

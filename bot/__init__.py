@@ -1,0 +1,2 @@
+"""Astrobot Telegram package."""
+
