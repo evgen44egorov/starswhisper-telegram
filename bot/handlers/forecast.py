@@ -55,14 +55,8 @@ async def prepare_forecast(source: Message, telegram_id: int) -> None:
 
 
 def format_forecast_result(text: str, is_demo: bool) -> str:
-    demo_note = (
-        "\n\n<i>🧪 Сейчас работает демонстрационный генератор. "
-        "После подключения API прогноз будет создавать AI.</i>"
-        if is_demo
-        else ""
-    )
     return (
-        f"{escape_and_limit(text)}{demo_note}\n\n"
+        f"{escape_and_limit(text)}\n\n"
         "<i>Прогноз носит развлекательный и саморефлексивный характер.</i>"
     )
 

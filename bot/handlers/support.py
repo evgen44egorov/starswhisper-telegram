@@ -8,7 +8,7 @@ from bot.config import get_settings
 from bot.keyboards.main_menu import main_menu_keyboard
 from bot.services.admin import notify_admin
 from bot.services.screens import show_screen
-from bot.texts.ru import PAYSUPPORT_TEXT, SUPPORT_TEXT, TERMS_TEXT
+from bot.texts.ru import ABOUT_TEXT, PAYSUPPORT_TEXT, SUPPORT_TEXT, TERMS_TEXT
 
 router = Router(name="support")
 
@@ -16,8 +16,13 @@ router = Router(name="support")
 def support_contact() -> str:
     username = (get_settings().support_username or "").strip().lstrip("@")
     if not username:
-        return "Контакт поддержки пока не указан: бот работает в тестовом режиме."
+        return "Контакт поддержки временно недоступен. Попробуй обратиться немного позже."
     return f"Контакт поддержки: @{escape(username)}"
+
+
+@router.message(Command("about"))
+async def about_command(message: Message) -> None:
+    await show_screen(message, ABOUT_TEXT, reply_markup=main_menu_keyboard())
 
 
 @router.message(Command("terms"))

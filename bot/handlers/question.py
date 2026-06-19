@@ -99,14 +99,9 @@ async def show_question_confirmation(source: Message, state: FSMContext) -> None
 
 
 def format_question_result(text: str, order: Order, is_demo: bool) -> str:
-    demo_note = (
-        "\n\n<i>🧪 Ответ создан локальным демонстрационным генератором.</i>"
-        if is_demo
-        else ""
-    )
     return (
-        f"{escape_and_limit(text)}{demo_note}\n\n"
-        f"<i>Тестовый заказ: {escape(order.public_id)} · "
+        f"{escape_and_limit(text)}\n\n"
+        f"<i>Заказ {escape(order.public_id)} · "
         "развлекательный и саморефлексивный разбор.</i>"
     )
 

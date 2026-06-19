@@ -55,6 +55,12 @@ PAYMENT_CATALOG = {
         price_stars=300,
         public_id_prefix="T",
     ),
+    "numerology": PaymentSpec(
+        title="Нумерологический разбор",
+        description="Персональная интерпретация чисел даты рождения и текущего цикла.",
+        price_stars=250,
+        public_id_prefix="U",
+    ),
 }
 
 
@@ -85,6 +91,16 @@ def effective_price(service_code: str, settings: Settings) -> int:
     return 1 if payments_mode(settings) == "stars_test" else spec.price_stars
 
 
+def public_price_label(service_code: str, settings: Settings) -> str:
+    spec = PAYMENT_CATALOG[service_code]
+    mode = payments_mode(settings)
+    if mode == "demo":
+        return f"цена {spec.price_stars} Stars · сейчас бесплатно"
+    if mode == "stars_test":
+        return f"цена {spec.price_stars} Stars · сейчас 1 Star"
+    return f"цена {spec.price_stars} Stars"
+
+
 def payment_note(service_code: str, settings: Settings) -> str:
     mode = payments_mode(settings)
     spec = PAYMENT_CATALOG[service_code]
@@ -95,13 +111,10 @@ def payment_note(service_code: str, settings: Settings) -> str:
         )
     if mode == "stars":
         return (
-            f"⭐ К оплате: {spec.price_stars} Stars. AI-разбор начнётся после "
+            f"⭐ К оплате: {spec.price_stars} Stars. Подготовка разбора начнётся после "
             "подтверждения платежа. Условия: /terms"
         )
-    return (
-        f"⭐ Будущая цена: {spec.price_stars} Stars. "
-        "На тестовом запуске оплата не списывается."
-    )
+    return "🎁 Сейчас эта услуга доступна бесплатно. Условия: /terms"
 
 
 def validate_payments_configuration(settings: Settings) -> None:

@@ -5,12 +5,13 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
-FORECAST_BUTTON = "🔮 Мой прогноз"
+FORECAST_BUTTON = "🎁 Бесплатный прогноз"
 QUESTION_BUTTON = "💌 Задать вопрос"
 COMPATIBILITY_BUTTON = "🧩 Совместимость"
 NATAL_BUTTON = "🪐 Натальная карта"
 MONTH_BUTTON = "🌙 Прогноз на месяц"
 TAROT_BUTTON = "🃏 Таро + астрология"
+NUMEROLOGY_BUTTON = "🔢 Нумерология"
 PROFILE_BUTTON = "👤 Мой профиль"
 ORDERS_BUTTON = "📦 Мои заказы"
 HELP_BUTTON = "🛟 Помощь"
@@ -21,7 +22,7 @@ def start_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="✨ Получить прогноз", callback_data="start:forecast"
+                    text="🎁 Бесплатный прогноз", callback_data="start:forecast"
                 )
             ],
             [
@@ -52,8 +53,8 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
                 KeyboardButton(text=NATAL_BUTTON),
             ],
             [KeyboardButton(text=MONTH_BUTTON), KeyboardButton(text=TAROT_BUTTON)],
-            [KeyboardButton(text=PROFILE_BUTTON), KeyboardButton(text=ORDERS_BUTTON)],
-            [KeyboardButton(text=HELP_BUTTON)],
+            [KeyboardButton(text=NUMEROLOGY_BUTTON), KeyboardButton(text=PROFILE_BUTTON)],
+            [KeyboardButton(text=ORDERS_BUTTON), KeyboardButton(text=HELP_BUTTON)],
         ],
         resize_keyboard=True,
         input_field_placeholder="Выберите раздел",
@@ -65,7 +66,7 @@ def services_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="🔮 Личный прогноз", callback_data="service:forecast"
+                    text="🎁 Бесплатный прогноз", callback_data="service:forecast"
                 ),
                 InlineKeyboardButton(
                     text="💌 Личный вопрос", callback_data="service:question"
@@ -86,6 +87,11 @@ def services_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     text="🃏 Таро + астрология", callback_data="service:tarot"
                 ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔢 Нумерология", callback_data="service:numerology"
+                )
             ],
         ]
     )

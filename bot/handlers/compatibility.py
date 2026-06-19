@@ -22,11 +22,16 @@ from bot.keyboards.compatibility import (
     RELATIONSHIP_TYPES,
     RESTART_COMPATIBILITY_BUTTON,
     SKIP_PARTNER_PLACE_BUTTON,
+    UNKNOWN_PARTNER_DATE_BUTTON,
     UNKNOWN_PARTNER_TIME_BUTTON,
     compatibility_confirmation_keyboard,
     compatibility_needs_profile_keyboard,
+    initial_partner_year_page,
+    partner_day_keyboard,
+    partner_month_keyboard,
     partner_place_keyboard,
     partner_time_keyboard,
+    partner_year_keyboard,
     relationship_type_keyboard,
 )
 from bot.keyboards.main_menu import COMPATIBILITY_BUTTON, main_menu_keyboard
@@ -44,10 +49,12 @@ from bot.texts.ru import (
     COMPATIBILITY_CONFIRM_DEMO_TEXT,
     COMPATIBILITY_CONFIRM_OPENAI_TEXT,
     COMPATIBILITY_DATE_PROMPT,
+    COMPATIBILITY_DAY_PROMPT,
     COMPATIBILITY_ERROR_TEXT,
     COMPATIBILITY_GENERATING_TEXT,
     COMPATIBILITY_NAME_PROMPT,
     COMPATIBILITY_NEEDS_PROFILE_TEXT,
+    COMPATIBILITY_MONTH_PROMPT,
     COMPATIBILITY_PLACE_PROMPT,
     COMPATIBILITY_RELATIONSHIP_PROMPT,
     COMPATIBILITY_TIME_PROMPT,
@@ -56,7 +63,6 @@ from bot.texts.ru import (
 from bot.utils.profile import (
     normalize_birth_place,
     normalize_name,
-    parse_birth_date,
     parse_birth_time,
 )
 from bot.utils.telegram import escape_and_limit
@@ -122,6 +128,37 @@ async def ask_partner_place(source: Message, state: FSMContext) -> None:
     )
 
 
+async def show_partner_birth_year(
+    source: Message,
+    state: FSMContext,
+    page_start: int | None = None,
+) -> None:
+    data = await state.get_data()
+    page_start = page_start if page_start is not None else initial_partner_year_page()
+    current_year = date.today().year
+    end_year = min(page_start + 15, current_year)
+    await state.set_state(CompatibilityForm.partner_birth_year)
+    await show_screen(
+        source,
+        COMPATIBILITY_DATE_PROMPT.format(
+            name=escape(str(data["partner_name"])),
+            start_year=page_start,
+            end_year=end_year,
+        ),
+        reply_markup=partner_year_keyboard(page_start),
+    )
+
+
+async def ask_partner_time(source: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    await state.set_state(CompatibilityForm.partner_birth_time)
+    await show_screen(
+        source,
+        COMPATIBILITY_TIME_PROMPT.format(name=escape(str(data["partner_name"]))),
+        reply_markup=partner_time_keyboard(),
+    )
+
+
 async def show_compatibility_confirmation(
     source: Message,
     state: FSMContext,
@@ -145,14 +182,9 @@ async def show_compatibility_confirmation(
 
 
 def format_compatibility_result(text: str, order: Order, is_demo: bool) -> str:
-    demo_note = (
-        "\n\n<i>🧪 Разбор создан локальным демонстрационным генератором.</i>"
-        if is_demo
-        else ""
-    )
     return (
-        f"{escape_and_limit(text)}{demo_note}\n\n"
-        f"<i>Тестовый заказ: {escape(order.public_id)} · "
+        f"{escape_and_limit(text)}\n\n"
+        f"<i>Заказ {escape(order.public_id)} · "
         "совместимость не является гарантией развития отношений.</i>"
     )
 
@@ -192,7 +224,9 @@ async def cancel_compatibility_callback(
     StateFilter(
         CompatibilityForm.relationship_type,
         CompatibilityForm.partner_name,
-        CompatibilityForm.partner_birth_date,
+        CompatibilityForm.partner_birth_year,
+        CompatibilityForm.partner_birth_month,
+        CompatibilityForm.partner_birth_day,
         CompatibilityForm.partner_birth_time,
         CompatibilityForm.partner_birth_place,
         CompatibilityForm.confirm,
@@ -246,34 +280,184 @@ async def receive_partner_name(message: Message, state: FSMContext) -> None:
         return
 
     await state.update_data(partner_name=partner_name)
-    await state.set_state(CompatibilityForm.partner_birth_date)
-    await show_screen(
-        message,
-        COMPATIBILITY_DATE_PROMPT.format(name=escape(partner_name)),
-        reply_markup=ReplyKeyboardRemove(),
-    )
+    await show_partner_birth_year(message, state)
 
 
-@router.message(CompatibilityForm.partner_birth_date)
-async def receive_partner_birth_date(message: Message, state: FSMContext) -> None:
+@router.callback_query(
+    CompatibilityForm.partner_birth_year,
+    F.data.startswith("compatibility:years:"),
+)
+async def change_partner_year_page(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     try:
-        partner_birth_date = parse_birth_date(message.text or "")
-    except ValueError as error:
+        page_start = int((callback.data or "").rsplit(":", 1)[1])
+    except (IndexError, ValueError):
+        return
+    if isinstance(callback.message, Message):
+        await show_partner_birth_year(callback.message, state, page_start)
+
+
+@router.callback_query(
+    CompatibilityForm.partner_birth_year,
+    F.data.startswith("compatibility:year:"),
+)
+async def select_partner_year(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    try:
+        year = int((callback.data or "").rsplit(":", 1)[1])
+    except (IndexError, ValueError):
+        return
+    current_year = date.today().year
+    if not current_year - 120 <= year <= current_year:
+        return
+    await state.update_data(partner_birth_year=year)
+    await state.set_state(CompatibilityForm.partner_birth_month)
+    if isinstance(callback.message, Message):
+        data = await state.get_data()
         await show_screen(
-            message,
-            f"⚠️ {escape(str(error))}\n\nУкажи дату в формате <b>ДД.ММ.ГГГГ</b>.",
-            reply_markup=ReplyKeyboardRemove(),
+            callback.message,
+            COMPATIBILITY_MONTH_PROMPT.format(
+                name=escape(str(data["partner_name"])),
+                year=year,
+            ),
+            reply_markup=partner_month_keyboard(year),
         )
+
+
+@router.callback_query(
+    CompatibilityForm.partner_birth_month,
+    F.data == "compatibility:year_back",
+)
+async def partner_year_back(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    if isinstance(callback.message, Message):
+        await show_partner_birth_year(callback.message, state)
+
+
+@router.callback_query(
+    CompatibilityForm.partner_birth_month,
+    F.data.startswith("compatibility:month:"),
+)
+async def select_partner_month(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    try:
+        month = int((callback.data or "").rsplit(":", 1)[1])
+        data = await state.get_data()
+        year = int(data["partner_birth_year"])
+    except (IndexError, KeyError, TypeError, ValueError):
+        return
+    if not 1 <= month <= 12:
+        return
+    if year == date.today().year and month > date.today().month:
+        return
+    await state.update_data(partner_birth_month=month)
+    await state.set_state(CompatibilityForm.partner_birth_day)
+    if isinstance(callback.message, Message):
+        await show_screen(
+            callback.message,
+            COMPATIBILITY_DAY_PROMPT.format(
+                name=escape(str(data["partner_name"])),
+                year=year,
+                month=month,
+            ),
+            reply_markup=partner_day_keyboard(year, month),
+        )
+
+
+@router.callback_query(
+    CompatibilityForm.partner_birth_day,
+    F.data == "compatibility:month_back",
+)
+async def partner_month_back(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    data = await state.get_data()
+    year = int(data["partner_birth_year"])
+    await state.set_state(CompatibilityForm.partner_birth_month)
+    if isinstance(callback.message, Message):
+        await show_screen(
+            callback.message,
+            COMPATIBILITY_MONTH_PROMPT.format(
+                name=escape(str(data["partner_name"])),
+                year=year,
+            ),
+            reply_markup=partner_month_keyboard(year),
+        )
+
+
+@router.callback_query(
+    CompatibilityForm.partner_birth_day,
+    F.data.startswith("compatibility:day:"),
+)
+async def select_partner_day(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    try:
+        day = int((callback.data or "").rsplit(":", 1)[1])
+        data = await state.get_data()
+        partner_birth_date = date(
+            int(data["partner_birth_year"]),
+            int(data["partner_birth_month"]),
+            day,
+        )
+    except (IndexError, KeyError, TypeError, ValueError):
+        return
+    if partner_birth_date > date.today():
         return
 
     await state.update_data(partner_birth_date=partner_birth_date)
-    data = await state.get_data()
-    await state.set_state(CompatibilityForm.partner_birth_time)
-    await show_screen(
-        message,
-        COMPATIBILITY_TIME_PROMPT.format(name=escape(data["partner_name"])),
-        reply_markup=partner_time_keyboard(),
+    if isinstance(callback.message, Message):
+        await ask_partner_time(callback.message, state)
+
+
+@router.callback_query(
+    StateFilter(
+        CompatibilityForm.partner_birth_year,
+        CompatibilityForm.partner_birth_month,
+        CompatibilityForm.partner_birth_day,
+    ),
+    F.data == "compatibility:date_unknown",
+)
+async def skip_partner_birth_date(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    await state.update_data(partner_birth_date=None, partner_birth_time=None)
+    if isinstance(callback.message, Message):
+        await ask_partner_place(callback.message, state)
+
+
+@router.message(
+    StateFilter(
+        CompatibilityForm.partner_birth_year,
+        CompatibilityForm.partner_birth_month,
+        CompatibilityForm.partner_birth_day,
     )
+)
+async def repeat_partner_birth_date_buttons(
+    message: Message,
+    state: FSMContext,
+) -> None:
+    data = await state.get_data()
+    current_state = await state.get_state()
+    warning = f"⚠️ Выбери дату кнопками или нажми «{UNKNOWN_PARTNER_DATE_BUTTON}».\n\n"
+    if current_state == CompatibilityForm.partner_birth_month.state:
+        year = int(data["partner_birth_year"])
+        await show_screen(
+            message,
+            warning + COMPATIBILITY_MONTH_PROMPT.format(
+                name=escape(str(data["partner_name"])), year=year
+            ),
+            reply_markup=partner_month_keyboard(year),
+        )
+    elif current_state == CompatibilityForm.partner_birth_day.state:
+        year = int(data["partner_birth_year"])
+        month = int(data["partner_birth_month"])
+        await show_screen(
+            message,
+            warning + COMPATIBILITY_DAY_PROMPT.format(
+                name=escape(str(data["partner_name"])), year=year, month=month
+            ),
+            reply_markup=partner_day_keyboard(year, month),
+        )
+    else:
+        await show_partner_birth_year(message, state)
 
 
 @router.message(
@@ -357,7 +541,7 @@ async def confirm_compatibility(message: Message, state: FSMContext) -> None:
         await begin_compatibility(message, state, message.from_user.id)
         return
 
-    partner_birth_date = data["partner_birth_date"]
+    partner_birth_date = data.get("partner_birth_date")
     partner_birth_time = data.get("partner_birth_time")
     partner_birth_time_text = (
         partner_birth_time.strftime("%H:%M")
@@ -368,7 +552,11 @@ async def confirm_compatibility(message: Message, state: FSMContext) -> None:
     compatibility_input = {
         "relationship_type": data["relationship_type"],
         "partner_name": data["partner_name"],
-        "partner_birth_date": partner_birth_date.isoformat(),
+        "partner_birth_date": (
+            partner_birth_date.isoformat()
+            if isinstance(partner_birth_date, date)
+            else None
+        ),
         "partner_birth_time": partner_birth_time_text,
         "partner_birth_place": data.get("partner_birth_place"),
         "profile": profile_snapshot(profile),

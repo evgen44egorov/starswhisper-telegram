@@ -14,6 +14,7 @@ from bot.handlers.forecast import router as forecast_router
 from bot.handlers.menu import router as menu_router
 from bot.handlers.monthly import router as monthly_router
 from bot.handlers.natal import router as natal_router
+from bot.handlers.numerology import router as numerology_router
 from bot.handlers.orders import router as orders_router
 from bot.handlers.payments import router as payments_router
 from bot.handlers.profile import router as profile_router
@@ -23,6 +24,22 @@ from bot.handlers.support import router as support_router
 from bot.handlers.tarot import router as tarot_router
 from bot.services.payments import PaymentServiceError, validate_payments_configuration
 from bot.services.recovery import recover_paid_orders
+from bot.texts.ru import BOT_DESCRIPTION, BOT_SHORT_DESCRIPTION
+
+
+async def configure_bot_profile(bot: Bot) -> None:
+    try:
+        await bot.set_my_short_description(
+            short_description=BOT_SHORT_DESCRIPTION,
+        )
+        await bot.set_my_description(
+            description=BOT_DESCRIPTION,
+        )
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "Не удалось обновить публичное описание бота",
+            exc_info=True,
+        )
 
 
 async def main() -> None:
@@ -37,6 +54,7 @@ async def main() -> None:
         token=settings.bot_token.get_secret_value(),
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
+    await configure_bot_profile(bot)
     configure_database(settings.database_url)
     await init_database()
     await recover_paid_orders(bot)
@@ -51,6 +69,7 @@ async def main() -> None:
     dispatcher.include_router(monthly_router)
     dispatcher.include_router(natal_router)
     dispatcher.include_router(tarot_router)
+    dispatcher.include_router(numerology_router)
     dispatcher.include_router(payments_router)
     dispatcher.include_router(orders_router)
     dispatcher.include_router(support_router)

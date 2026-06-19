@@ -9,6 +9,7 @@ from bot.services.prompts import (
     build_daily_forecast_input,
     build_monthly_forecast_input,
     build_natal_chart_input,
+    build_numerology_input,
     build_personal_question_input,
     build_tarot_input,
 )
@@ -62,6 +63,20 @@ class ForecastPromptTests(unittest.TestCase):
         self.assertIn('"солнечный_знак": "Овен"', prompt)
         self.assertIn('"тип_отношений": "Романтические"', prompt)
 
+    def test_compatibility_allows_unknown_partner_date(self) -> None:
+        profile = Profile(name="Анна", birth_date=date(1996, 8, 14))
+        prompt = build_compatibility_input(
+            profile=profile,
+            relationship_type="Романтические",
+            partner_name="Михаил",
+            partner_birth_date=None,
+            partner_birth_time=None,
+            partner_birth_place=None,
+            current_date=date(2026, 6, 18),
+        )
+        self.assertIn('"дата_рождения": "не указано"', prompt)
+        self.assertIn('"солнечный_знак": "не определён"', prompt)
+
     def test_monthly_period_and_area_are_serialized(self) -> None:
         profile = Profile(name="Анна", birth_date=date(1996, 8, 14))
         prompt = build_monthly_forecast_input(
@@ -108,6 +123,16 @@ class ForecastPromptTests(unittest.TestCase):
         self.assertIn('"card": "Звезда"', prompt)
         self.assertIn('"orientation": "перевёрнутое"', prompt)
         self.assertIn('"солнечный_знак": "Стрелец"', prompt)
+
+    def test_numerology_uses_precalculated_numbers(self) -> None:
+        prompt = build_numerology_input(
+            profile=Profile(name="Анна", birth_date=date(1992, 11, 25)),
+            period="Прогноз на текущий год",
+            numbers={"life_path": 3, "personal_year": 1},
+            current_date=date(2026, 6, 19),
+        )
+        self.assertIn('"life_path": 3', prompt)
+        self.assertIn('"personal_year": 1', prompt)
 
 
 class DemoForecastTests(unittest.IsolatedAsyncioTestCase):
@@ -164,6 +189,24 @@ class DemoForecastTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Анна и Михаил", result.text)
         self.assertIn("Лев", result.text)
         self.assertIn("Овен", result.text)
+
+    async def test_demo_compatibility_without_partner_date(self) -> None:
+        settings = Settings(
+            BOT_TOKEN="test-token-longer-than-20-characters",
+            AI_PROVIDER="demo",
+            _env_file=None,
+        )
+        profile = Profile(name="Анна", birth_date=date(1996, 8, 14))
+        result = await AstrobotAIService(settings).generate_compatibility(
+            profile=profile,
+            relationship_type="Романтические",
+            partner_name="Михаил",
+            partner_birth_date=None,
+            partner_birth_time=None,
+            partner_birth_place=None,
+            current_date=date(2026, 6, 18),
+        )
+        self.assertIn("Дата рождения Михаил не указана", result.text)
 
     async def test_demo_monthly_forecast(self) -> None:
         settings = Settings(
@@ -227,6 +270,29 @@ class DemoForecastTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Звезда", result.text)
         self.assertIn("Луна", result.text)
         self.assertIn("Сила", result.text)
+
+    async def test_demo_numerology_uses_calculated_cycles(self) -> None:
+        settings = Settings(
+            BOT_TOKEN="test-token-longer-than-20-characters",
+            AI_PROVIDER="demo",
+            _env_file=None,
+        )
+        numbers = {
+            "life_path": 3,
+            "birthday_number": 7,
+            "personal_year": 1,
+            "personal_month": 7,
+            "personal_day": 8,
+        }
+        result = await AstrobotAIService(settings).generate_numerology(
+            profile=Profile(name="Анна", birth_date=date(1992, 11, 25)),
+            period="Прогноз на текущий год",
+            numbers=numbers,
+            current_date=date(2026, 6, 19),
+        )
+        self.assertTrue(result.is_demo)
+        self.assertIn("Число жизненного пути — 3", result.text)
+        self.assertIn("Личный год — 1", result.text)
 
 
 class QuestionSafetyTests(unittest.TestCase):

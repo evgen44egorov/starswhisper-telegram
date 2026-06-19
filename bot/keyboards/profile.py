@@ -134,7 +134,7 @@ def profile_actions_keyboard() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text="🔮 Получить прогноз", callback_data="start:forecast"
+                    text="🎁 Бесплатный прогноз", callback_data="start:forecast"
                 )
             ],
             [

@@ -31,7 +31,7 @@ class OrderFormattingTests(unittest.TestCase):
         self.assertIn("Q-ABC123", card)
         self.assertIn("Личный вопрос", card)
         self.assertIn("Как обсудить новую роль?", card)
-        self.assertIn("не списывалась", card)
+        self.assertIn("Стоимость: бесплатно", card)
 
     def test_handles_invalid_input_json(self) -> None:
         order = make_order(input_data_json="not-json")
@@ -74,6 +74,18 @@ class OrderFormattingTests(unittest.TestCase):
         card = format_order_card(order)
         self.assertIn("Таро + астрология", card)
         self.assertIn("Звезда, Луна, Сила", card)
+
+    def test_formats_numerology_order(self) -> None:
+        order = make_order(
+            service_code="numerology",
+            input_data_json=(
+                '{"period":"Прогноз на год","numbers":'
+                '{"life_path":3,"personal_year":1,"personal_month":7,"personal_day":8}}'
+            ),
+        )
+        card = format_order_card(order)
+        self.assertIn("Нумерологический разбор", card)
+        self.assertIn("Жизненный путь: 3", card)
 
 
 if __name__ == "__main__":

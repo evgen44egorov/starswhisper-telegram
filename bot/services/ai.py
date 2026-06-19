@@ -17,6 +17,8 @@ from bot.services.prompts import (
     MONTHLY_FORECAST_PROMPT_VERSION,
     NATAL_CHART_INSTRUCTIONS,
     NATAL_CHART_PROMPT_VERSION,
+    NUMEROLOGY_INSTRUCTIONS,
+    NUMEROLOGY_PROMPT_VERSION,
     PERSONAL_QUESTION_INSTRUCTIONS,
     PERSONAL_QUESTION_PROMPT_VERSION,
     TAROT_INSTRUCTIONS,
@@ -25,6 +27,7 @@ from bot.services.prompts import (
     build_daily_forecast_input,
     build_monthly_forecast_input,
     build_natal_chart_input,
+    build_numerology_input,
     build_personal_question_input,
     build_tarot_input,
 )
@@ -115,7 +118,7 @@ class AstrobotAIService:
         profile: Profile,
         relationship_type: str,
         partner_name: str,
-        partner_birth_date: date,
+        partner_birth_date: date | None,
         partner_birth_time: str | None,
         partner_birth_place: str | None,
         current_date: date,
@@ -275,6 +278,34 @@ class AstrobotAIService:
             is_demo=False,
         )
 
+    async def generate_numerology(
+        self,
+        profile: Profile,
+        period: str,
+        numbers: dict[str, int],
+        current_date: date,
+    ) -> AIResult:
+        provider = self._get_provider()
+        if provider == "demo":
+            return AIResult(
+                text=_build_demo_numerology(profile, period, numbers),
+                provider="demo",
+                model="local-template",
+                prompt_version=NUMEROLOGY_PROMPT_VERSION,
+                is_demo=True,
+            )
+        result_text = await self._generate_openai(
+            instructions=NUMEROLOGY_INSTRUCTIONS,
+            input_text=build_numerology_input(profile, period, numbers, current_date),
+        )
+        return AIResult(
+            text=result_text,
+            provider="openai",
+            model=self.settings.ai_model,
+            prompt_version=NUMEROLOGY_PROMPT_VERSION,
+            is_demo=False,
+        )
+
     def _get_provider(self) -> str:
         provider = self.settings.ai_provider.strip().lower()
         if provider not in {"demo", "openai"}:
@@ -430,24 +461,31 @@ def _build_demo_compatibility(
     profile: Profile,
     relationship_type: str,
     partner_name: str,
-    partner_birth_date: date,
+    partner_birth_date: date | None,
 ) -> str:
     user_sign = get_zodiac_sign(profile.birth_date)
-    partner_sign = get_zodiac_sign(partner_birth_date)
     user_element = get_zodiac_element(user_sign)
-    partner_element = get_zodiac_element(partner_sign)
-
-    if user_element == partner_element:
-        dynamic = "Вам может быть проще узнавать в реакциях друг друга знакомый ритм, хотя похожие слабые места иногда усиливаются."
-    elif {user_element, partner_element} in ({"Огонь", "Воздух"}, {"Земля", "Вода"}):
-        dynamic = "Ваши стили могут естественно поддерживать друг друга: один приносит импульс, другой помогает ему обрести направление и форму."
+    if partner_birth_date is None:
+        signs_context = (
+            f"Дата рождения {partner_name} не указана, поэтому разбор опирается на "
+            f"солнечный знак {user_sign}, тип отношений и общие закономерности общения."
+        )
+        dynamic = "Особенно полезно сверять выводы с реальным поведением, потребностями и договорённостями между вами."
     else:
-        dynamic = "Ваши способы реагировать могут заметно различаться, и именно это способно стать как источником интереса, так и поводом учиться переводу с языка одного человека на язык другого."
+        partner_sign = get_zodiac_sign(partner_birth_date)
+        partner_element = get_zodiac_element(partner_sign)
+        signs_context = f"Этот символический разбор сопоставляет солнечные знаки {user_sign} и {partner_sign}."
+        if user_element == partner_element:
+            dynamic = "Вам может быть проще узнавать в реакциях друг друга знакомый ритм, хотя похожие слабые места иногда усиливаются."
+        elif {user_element, partner_element} in ({"Огонь", "Воздух"}, {"Земля", "Вода"}):
+            dynamic = "Ваши стили могут естественно поддерживать друг друга: один приносит импульс, другой помогает ему обрести направление и форму."
+        else:
+            dynamic = "Ваши способы реагировать могут заметно различаться, и именно это способно стать как источником интереса, так и поводом учиться лучше понимать друг друга."
 
     return f"""🧩 Совместимость: {profile.name} и {partner_name}
 
 💫 Общая динамика
-Этот символический разбор сопоставляет солнечные знаки {user_sign} и {partner_sign} в контексте отношений «{relationship_type}». {dynamic} Связь лучше оценивать не по одному признаку, а по тому, насколько вы умеете слышать потребности и уважать границы друг друга.
+{signs_context} Контекст отношений — «{relationship_type}». {dynamic} Связь лучше оценивать не по одному признаку, а по тому, насколько вы умеете слышать потребности и уважать границы друг друга.
 
 💌 Эмоциональная связь
 Один из вас может быстрее выражать переживания словами или действием, а другому может требоваться пауза. Это не обязательно означает холодность или отсутствие интереса. Полезно заранее обсуждать, какая поддержка действительно нужна каждому.
@@ -541,7 +579,7 @@ def _build_demo_natal_chart(
     return f"""🪐 Натальная карта для {profile.name}
 
 ✨ Важное уточнение
-Это демонстрационный символический астропортрет по солнечному знаку {sign} и доступным данным рождения. {time_note} Точность времени: {time_accuracy}.{period_note} Место: {place_note}. Точные положения планет, дома, аспекты и Асцендент здесь не рассчитываются.
+Это символический астропортрет по солнечному знаку {sign} и доступным данным рождения. {time_note} Точность времени: {time_accuracy}.{period_note} Место: {place_note}. Точные положения планет, дома, аспекты и Асцендент здесь не рассчитываются.
 
 💫 Ядро личности
 В твоем характере может сочетаться стремление сохранять собственный внутренний ритм с потребностью видеть смысл в происходящем. Для тебя особенно важно не просто выполнять задачи, а понимать, зачем они нужны и насколько согласуются с твоими ценностями. Сильнее всего ты раскрываешься там, где можешь действовать осознанно, а не только реагировать на ожидания окружающих.
@@ -597,7 +635,7 @@ def _build_demo_tarot(
 📝 Вопрос
 {question}
 
-Этот демонстрационный расклад «{spread}» относится к сфере «{area}». Карты выбраны случайно и используются как символы для размышления, а солнечный знак {sign} — как мягкий контекст.
+Расклад «{spread}» относится к сфере «{area}». Карты выбраны случайно и используются как символы для размышления, а солнечный знак {sign} — как мягкий контекст.
 
 🔮 Карта 1 — текущая ситуация
 {first['card']} ({first['orientation']}). Образ этой карты предлагает посмотреть на то, что уже началось и требует осознанного участия. Сейчас полезно отделить реальные факты от ожиданий и выбрать ту часть ситуации, на которую ты действительно можешь влиять.
@@ -618,3 +656,42 @@ def _build_demo_tarot(
 
 ✨ Итог
 Карты не определяют будущее. Используй их как три разных угла зрения, которые помогают яснее сформулировать следующий безопасный шаг."""
+
+
+def _build_demo_numerology(
+    profile: Profile,
+    period: str,
+    numbers: dict[str, int],
+) -> str:
+    return f"""🔢 Нумерологический разбор для {profile.name}
+
+Этот разбор относится к формату «{period}». Нумерология используется здесь как символический язык для саморефлексии, а не как научный прогноз.
+
+💫 Число жизненного пути — {numbers['life_path']}
+Это число можно воспринимать как образ долгосрочного способа учиться, выбирать направление и раскрывать сильные стороны. Полезнее искать не жесткое описание характера, а ситуации, в которых тебе легче проявлять инициативу, устойчивость и любопытство.
+
+🎂 Число дня рождения — {numbers['birthday_number']}
+Оно символически описывает естественный стиль действий. Обрати внимание, какие качества проявляются без внешнего давления и где они превращаются в перегрузку или завышенные требования к себе.
+
+🌟 Личный год — {numbers['personal_year']}
+Главной темой года может стать осознанный выбор приоритетов. Не обязательно менять всё сразу: достаточно регулярно сверять обязательства с тем, что действительно остаётся важным.
+
+🌙 Личный месяц — {numbers['personal_month']}
+Текущий месяц поддерживает конкретные небольшие шаги и завершение лишнего. Полезно уменьшить число параллельных задач и сохранить место для корректировки планов.
+
+☀️ Личный день — {numbers['personal_day']}
+Сегодняшний символический ориентир — соединять намерение с выполнимым действием. Перед важным ответом проверь факты и дай себе короткую паузу.
+
+💌 Отношения
+Прямой разговор работает лучше попытки угадать чужую реакцию. Говори о потребностях конкретно и оставляй другому человеку право на собственный темп.
+
+💼 Работа и дела
+Сосредоточься на результате, который можно завершить и показать. Нумерологический образ не заменяет факты, навыки и реальные условия выбора.
+
+🧭 Лучшие действия
+1. Определи один главный приоритет периода.
+2. Заверши одно обязательство перед началом нового.
+3. В конце недели оцени фактический прогресс без самокритики.
+
+✨ Итог
+Числа не назначают судьбу. Используй их как повод задать себе точные вопросы и выбрать следующий безопасный шаг."""

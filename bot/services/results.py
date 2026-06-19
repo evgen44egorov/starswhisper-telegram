@@ -58,8 +58,7 @@ def format_order_result_chunks(
 ) -> list[str]:
     chunks = split_result_text(result_text)
     footer = (
-        ("\n\n<i>🧪 Результат создан демонстрационным генератором.</i>" if is_demo else "")
-        + f"\n\n<i>{service_label(order.service_code)} · заказ {escape(order.public_id)}</i>"
+        f"\n\n<i>{service_label(order.service_code)} · заказ {escape(order.public_id)}</i>"
     )
     if len(chunks[-1]) + len(footer) <= 4000:
         chunks[-1] += footer

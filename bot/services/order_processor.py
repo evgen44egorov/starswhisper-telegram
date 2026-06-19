@@ -66,8 +66,10 @@ async def process_paid_order(order: Order, telegram_id: int) -> AIResult:
                 profile=profile,
                 relationship_type=str(data["relationship_type"]),
                 partner_name=str(data["partner_name"]),
-                partner_birth_date=date.fromisoformat(
-                    str(data["partner_birth_date"])
+                partner_birth_date=(
+                    date.fromisoformat(str(data["partner_birth_date"]))
+                    if data.get("partner_birth_date")
+                    else None
                 ),
                 partner_birth_time=(
                     str(data["partner_birth_time"])
@@ -122,6 +124,19 @@ async def process_paid_order(order: Order, telegram_id: int) -> AIResult:
                 area=str(data["area"]),
                 question=str(data["question"]),
                 cards=cards,
+                current_date=date.today(),
+            )
+        )
+    elif order.service_code == "numerology":
+        raw_numbers = data.get("numbers")
+        if not isinstance(raw_numbers, dict):
+            raise OrderProcessingError("В заказе отсутствует нумерологический расчёт")
+        numbers = {str(key): int(value) for key, value in raw_numbers.items()}
+        result = await run_with_one_retry(
+            lambda: service.generate_numerology(
+                profile=profile,
+                period=str(data["period"]),
+                numbers=numbers,
                 current_date=date.today(),
             )
         )

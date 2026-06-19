@@ -83,13 +83,8 @@ async def show_tarot_confirmation(source: Message, state: FSMContext) -> None:
 
 
 def format_tarot_result(text: str, order: Order, is_demo: bool) -> str:
-    demo_note = (
-        "\n\n<i>🧪 Расклад создан демонстрационным генератором.</i>"
-        if is_demo
-        else ""
-    )
     return (
-        f"{escape_and_limit(text)}{demo_note}\n\n"
+        f"{escape_and_limit(text)}\n\n"
         f"<i>Символический расклад · заказ {escape(order.public_id)}</i>"
     )
 

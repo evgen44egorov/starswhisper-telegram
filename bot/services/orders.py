@@ -9,6 +9,7 @@ SERVICE_LABELS = {
     "monthly_forecast": "🌙 Прогноз на месяц",
     "natal_chart": "🪐 Натальная карта",
     "tarot_astrology": "🃏 Таро + астрология",
+    "numerology": "🔢 Нумерологический разбор",
 }
 
 STATUS_LABELS = {
@@ -53,7 +54,7 @@ def format_order_input(order: Order) -> str:
         return (
             f"Тип отношений: {escape(str(data.get('relationship_type', 'Не указано')))}\n"
             f"Второй человек: {escape(str(data.get('partner_name', 'Не указано')))}\n"
-            f"Дата рождения: {escape(str(data.get('partner_birth_date', 'Не указано')))}"
+            f"Дата рождения: {escape(str(data.get('partner_birth_date') or 'Не указано'))}"
         )
     if order.service_code == "monthly_forecast":
         return (
@@ -84,12 +85,21 @@ def format_order_input(order: Order) -> str:
             f"Вопрос: {escape(str(data.get('question', 'Не указано')))}\n"
             f"Карты: {card_names or 'Не указаны'}"
         )
+    if order.service_code == "numerology":
+        numbers = data.get("numbers") if isinstance(data.get("numbers"), dict) else {}
+        return (
+            f"Период: {escape(str(data.get('period', 'Не указано')))}\n"
+            f"Жизненный путь: {escape(str(numbers.get('life_path', '—')))}\n"
+            f"Личный год: {escape(str(numbers.get('personal_year', '—')))}\n"
+            f"Личный месяц: {escape(str(numbers.get('personal_month', '—')))}\n"
+            f"Личный день: {escape(str(numbers.get('personal_day', '—')))}"
+        )
     return "Параметры заказа сохранены."
 
 
 def format_order_card(order: Order) -> str:
     price_label = (
-        f"Плановая цена: {order.price_stars} Stars · не списывалась"
+        "Стоимость: бесплатно"
         if order.status.startswith("test_")
         else f"Цена: {order.price_stars} Stars"
     )

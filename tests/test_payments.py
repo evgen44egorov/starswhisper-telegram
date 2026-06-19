@@ -19,6 +19,7 @@ from bot.services.payments import (
     PaymentServiceError,
     effective_price,
     payment_note,
+    public_price_label,
     validate_payments_configuration,
 )
 
@@ -45,7 +46,18 @@ class PaymentSettingsTests(unittest.TestCase):
         self.assertEqual(effective_price("natal_chart", stars_test), 1)
         self.assertEqual(effective_price("tarot_astrology", demo), 300)
         self.assertEqual(effective_price("tarot_astrology", stars_test), 1)
+        self.assertEqual(effective_price("numerology", demo), 250)
+        self.assertEqual(effective_price("numerology", stars_test), 1)
+        self.assertIn("доступна бесплатно", payment_note("personal_question", demo))
         self.assertIn("реальное списание одной звезды", payment_note("personal_question", stars_test))
+        self.assertEqual(
+            public_price_label("personal_question", demo),
+            "цена 350 Stars · сейчас бесплатно",
+        )
+        self.assertEqual(
+            public_price_label("personal_question", stars_test),
+            "цена 350 Stars · сейчас 1 Star",
+        )
 
     def test_live_mode_requires_support(self) -> None:
         settings = make_settings(
