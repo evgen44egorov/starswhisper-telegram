@@ -20,6 +20,7 @@ from bot.handlers.profile import router as profile_router
 from bot.handlers.question import router as question_router
 from bot.handlers.start import router as start_router
 from bot.handlers.support import router as support_router
+from bot.handlers.tarot import router as tarot_router
 from bot.services.payments import PaymentServiceError, validate_payments_configuration
 from bot.services.recovery import recover_paid_orders
 
@@ -49,6 +50,7 @@ async def main() -> None:
     dispatcher.include_router(compatibility_router)
     dispatcher.include_router(monthly_router)
     dispatcher.include_router(natal_router)
+    dispatcher.include_router(tarot_router)
     dispatcher.include_router(payments_router)
     dispatcher.include_router(orders_router)
     dispatcher.include_router(support_router)

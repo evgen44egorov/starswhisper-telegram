@@ -8,6 +8,7 @@ SERVICE_LABELS = {
     "compatibility": "🧩 Совместимость",
     "monthly_forecast": "🌙 Прогноз на месяц",
     "natal_chart": "🪐 Натальная карта",
+    "tarot_astrology": "🃏 Таро + астрология",
 }
 
 STATUS_LABELS = {
@@ -69,6 +70,19 @@ def format_order_input(order: Order) -> str:
             f"Жизненный этап: {escape(str(data.get('life_stage', 'Не указано')))}\n"
             f"Фокус: {escape(str(data.get('focus', 'Полная карта')))}\n"
             f"Уточнение: {escape(str(data.get('subfocus', 'Не указано')))}"
+        )
+    if order.service_code == "tarot_astrology":
+        cards = data.get("cards") if isinstance(data.get("cards"), list) else []
+        card_names = ", ".join(
+            escape(str(card.get("card", "")))
+            for card in cards
+            if isinstance(card, dict)
+        )
+        return (
+            f"Тип: {escape(str(data.get('spread', 'Не указано')))}\n"
+            f"Тема: {escape(str(data.get('area', 'Не указано')))}\n"
+            f"Вопрос: {escape(str(data.get('question', 'Не указано')))}\n"
+            f"Карты: {card_names or 'Не указаны'}"
         )
     return "Параметры заказа сохранены."
 

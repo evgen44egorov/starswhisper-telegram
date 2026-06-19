@@ -10,6 +10,7 @@ QUESTION_BUTTON = "💌 Задать вопрос"
 COMPATIBILITY_BUTTON = "🧩 Совместимость"
 NATAL_BUTTON = "🪐 Натальная карта"
 MONTH_BUTTON = "🌙 Прогноз на месяц"
+TAROT_BUTTON = "🃏 Таро + астрология"
 PROFILE_BUTTON = "👤 Мой профиль"
 ORDERS_BUTTON = "📦 Мои заказы"
 HELP_BUTTON = "🛟 Помощь"
@@ -50,8 +51,9 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
                 KeyboardButton(text=COMPATIBILITY_BUTTON),
                 KeyboardButton(text=NATAL_BUTTON),
             ],
-            [KeyboardButton(text=MONTH_BUTTON), KeyboardButton(text=PROFILE_BUTTON)],
-            [KeyboardButton(text=ORDERS_BUTTON), KeyboardButton(text=HELP_BUTTON)],
+            [KeyboardButton(text=MONTH_BUTTON), KeyboardButton(text=TAROT_BUTTON)],
+            [KeyboardButton(text=PROFILE_BUTTON), KeyboardButton(text=ORDERS_BUTTON)],
+            [KeyboardButton(text=HELP_BUTTON)],
         ],
         resize_keyboard=True,
         input_field_placeholder="Выберите раздел",
@@ -80,7 +82,10 @@ def services_keyboard() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text="🌙 Прогноз на месяц", callback_data="service:month"
-                )
+                ),
+                InlineKeyboardButton(
+                    text="🃏 Таро + астрология", callback_data="service:tarot"
+                ),
             ],
         ]
     )

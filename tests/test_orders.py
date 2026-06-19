@@ -62,6 +62,19 @@ class OrderFormattingTests(unittest.TestCase):
         self.assertIn("N-LONG", chunks[-1])
         self.assertTrue(any("&lt;карты&gt;" in chunk for chunk in chunks))
 
+    def test_formats_tarot_order_with_drawn_cards(self) -> None:
+        order = make_order(
+            service_code="tarot_astrology",
+            input_data_json=(
+                '{"spread":"Расклад на ситуацию","area":"Работа",'
+                '"question":"Стоит ли менять работу?","cards":['
+                '{"card":"Звезда"},{"card":"Луна"},{"card":"Сила"}]}'
+            ),
+        )
+        card = format_order_card(order)
+        self.assertIn("Таро + астрология", card)
+        self.assertIn("Звезда, Луна, Сила", card)
+
 
 if __name__ == "__main__":
     unittest.main()

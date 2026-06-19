@@ -10,6 +10,7 @@ from bot.services.prompts import (
     build_monthly_forecast_input,
     build_natal_chart_input,
     build_personal_question_input,
+    build_tarot_input,
 )
 from bot.utils.months import first_day_of_next_month, format_month_period
 from bot.utils.question import normalize_question
@@ -88,6 +89,25 @@ class ForecastPromptTests(unittest.TestCase):
         self.assertIn('"время_рождения": "неизвестно"', prompt)
         self.assertIn('"уточнение_фокуса": "Смена работы"', prompt)
         self.assertIn('"текущий_жизненный_этап": "Переживаю перемены"', prompt)
+
+    def test_tarot_cards_are_serialized_as_data(self) -> None:
+        profile = Profile(name="Анна", birth_date=date(1992, 11, 25))
+        cards = [
+            {"position": "Текущая ситуация", "card": "Звезда", "orientation": "прямое"},
+            {"position": "Скрытое влияние", "card": "Луна", "orientation": "перевёрнутое"},
+            {"position": "Совет", "card": "Сила", "orientation": "прямое"},
+        ]
+        prompt = build_tarot_input(
+            profile,
+            "Расклад на ситуацию",
+            "Работа и карьера",
+            "Стоит ли менять направление работы?",
+            cards,
+            date(2026, 6, 19),
+        )
+        self.assertIn('"card": "Звезда"', prompt)
+        self.assertIn('"orientation": "перевёрнутое"', prompt)
+        self.assertIn('"солнечный_знак": "Стрелец"', prompt)
 
 
 class DemoForecastTests(unittest.IsolatedAsyncioTestCase):
@@ -183,6 +203,30 @@ class DemoForecastTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Самопознание и рост", result.text)
         self.assertIn("Личные границы", result.text)
         self.assertIn("точные положения планет", result.text.lower())
+
+    async def test_demo_tarot_uses_drawn_cards(self) -> None:
+        settings = Settings(
+            BOT_TOKEN="test-token-longer-than-20-characters",
+            AI_PROVIDER="demo",
+            _env_file=None,
+        )
+        cards = [
+            {"position": "Текущая ситуация", "card": "Звезда", "orientation": "прямое"},
+            {"position": "Скрытое влияние", "card": "Луна", "orientation": "перевёрнутое"},
+            {"position": "Совет", "card": "Сила", "orientation": "прямое"},
+        ]
+        result = await AstrobotAIService(settings).generate_tarot_reading(
+            profile=Profile(name="Анна", birth_date=date(1992, 11, 25)),
+            spread="Расклад на ситуацию",
+            area="Работа и карьера",
+            question="Стоит ли менять направление работы?",
+            cards=cards,
+            current_date=date(2026, 6, 19),
+        )
+        self.assertTrue(result.is_demo)
+        self.assertIn("Звезда", result.text)
+        self.assertIn("Луна", result.text)
+        self.assertIn("Сила", result.text)
 
 
 class QuestionSafetyTests(unittest.TestCase):

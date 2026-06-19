@@ -49,6 +49,12 @@ PAYMENT_CATALOG = {
         price_stars=900,
         public_id_prefix="N",
     ),
+    "tarot_astrology": PaymentSpec(
+        title="Таро + астрология",
+        description="Символический расклад трёх карт с астрологическим контекстом.",
+        price_stars=300,
+        public_id_prefix="T",
+    ),
 }
 
 

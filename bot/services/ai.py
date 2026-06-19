@@ -19,11 +19,14 @@ from bot.services.prompts import (
     NATAL_CHART_PROMPT_VERSION,
     PERSONAL_QUESTION_INSTRUCTIONS,
     PERSONAL_QUESTION_PROMPT_VERSION,
+    TAROT_INSTRUCTIONS,
+    TAROT_PROMPT_VERSION,
     build_compatibility_input,
     build_daily_forecast_input,
     build_monthly_forecast_input,
     build_natal_chart_input,
     build_personal_question_input,
+    build_tarot_input,
 )
 from bot.utils.zodiac import get_zodiac_element, get_zodiac_sign
 
@@ -231,6 +234,44 @@ class AstrobotAIService:
             provider="openai",
             model=self.settings.ai_model,
             prompt_version=NATAL_CHART_PROMPT_VERSION,
+            is_demo=False,
+        )
+
+    async def generate_tarot_reading(
+        self,
+        profile: Profile,
+        spread: str,
+        area: str,
+        question: str,
+        cards: list[dict[str, str]],
+        current_date: date,
+    ) -> AIResult:
+        provider = self._get_provider()
+        if provider == "demo":
+            return AIResult(
+                text=_build_demo_tarot(profile, spread, area, question, cards),
+                provider="demo",
+                model="local-template",
+                prompt_version=TAROT_PROMPT_VERSION,
+                is_demo=True,
+            )
+        result_text = await self._generate_openai(
+            instructions=TAROT_INSTRUCTIONS,
+            input_text=build_tarot_input(
+                profile=profile,
+                spread=spread,
+                area=area,
+                question=question,
+                cards=cards,
+                current_date=current_date,
+            ),
+            max_chars=3800,
+        )
+        return AIResult(
+            text=result_text,
+            provider="openai",
+            model=self.settings.ai_model,
+            prompt_version=TAROT_PROMPT_VERSION,
             is_demo=False,
         )
 
@@ -540,3 +581,40 @@ def _build_demo_natal_chart(
 
 ✨ Итог
 Эта карта — не рамка и не предсказание. Используй ее как набор вопросов и ориентиров, которые помогают внимательнее понимать свои реакции, силу и направление роста."""
+
+
+def _build_demo_tarot(
+    profile: Profile,
+    spread: str,
+    area: str,
+    question: str,
+    cards: list[dict[str, str]],
+) -> str:
+    sign = get_zodiac_sign(profile.birth_date)
+    first, second, third = cards
+    return f"""🃏 Таро + астрология: разбор ситуации
+
+📝 Вопрос
+{question}
+
+Этот демонстрационный расклад «{spread}» относится к сфере «{area}». Карты выбраны случайно и используются как символы для размышления, а солнечный знак {sign} — как мягкий контекст.
+
+🔮 Карта 1 — текущая ситуация
+{first['card']} ({first['orientation']}). Образ этой карты предлагает посмотреть на то, что уже началось и требует осознанного участия. Сейчас полезно отделить реальные факты от ожиданий и выбрать ту часть ситуации, на которую ты действительно можешь влиять.
+
+🌙 Карта 2 — скрытое влияние
+{second['card']} ({second['orientation']}). Возможно, неочевидную роль играет прежний опыт или желание получить определенность слишком быстро. Карта не сообщает скрытые факты, а приглашает проверить собственные предположения.
+
+🧭 Карта 3 — совет
+{third['card']} ({third['orientation']}). Лучший ориентир — небольшой обратимый шаг: уточнить информацию, спокойно обозначить потребность или дать себе ограниченное время на решение.
+
+⚡ Главный вызов
+Не превращать тревогу в доказательство и не отдавать символическому раскладу ответственность за выбор. Решение остаётся за тобой и может меняться при появлении новых фактов.
+
+⚠️ Чего лучше избегать
+• резких решений на пике эмоций;
+• попытки угадать чужие мысли;
+• финансового или личного риска ради проверки предсказания.
+
+✨ Итог
+Карты не определяют будущее. Используй их как три разных угла зрения, которые помогают яснее сформулировать следующий безопасный шаг."""

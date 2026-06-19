@@ -103,6 +103,28 @@ async def process_paid_order(order: Order, telegram_id: int) -> AIResult:
                 current_date=date.today(),
             )
         )
+    elif order.service_code == "tarot_astrology":
+        cards = [
+            {
+                "position": str(card.get("position", "")),
+                "card": str(card.get("card", "")),
+                "orientation": str(card.get("orientation", "")),
+            }
+            for card in data.get("cards", [])
+            if isinstance(card, dict)
+        ]
+        if len(cards) != 3:
+            raise OrderProcessingError("В заказе отсутствуют карты расклада")
+        result = await run_with_one_retry(
+            lambda: service.generate_tarot_reading(
+                profile=profile,
+                spread=str(data["spread"]),
+                area=str(data["area"]),
+                question=str(data["question"]),
+                cards=cards,
+                current_date=date.today(),
+            )
+        )
     else:
         raise OrderProcessingError("Неизвестная услуга заказа")
 
