@@ -10,12 +10,18 @@ from bot.database.admin import (
     claim_order_retry,
     finish_order_refund,
     get_admin_order,
+    get_admin_stats,
     get_admin_user,
     list_admin_orders,
 )
 from bot.database.repositories import fail_order
 from bot.keyboards.main_menu import main_menu_keyboard
-from bot.services.admin import format_admin_order, format_admin_user, is_admin
+from bot.services.admin import (
+    format_admin_order,
+    format_admin_stats,
+    format_admin_user,
+    is_admin,
+)
 from bot.services.order_processor import process_paid_order
 from bot.services.orders import service_label, status_label
 from bot.services.results import send_order_result
@@ -24,6 +30,7 @@ logger = logging.getLogger(__name__)
 router = Router(name="admin")
 ADMIN_COMMANDS = (
     "admin",
+    "admin_stats",
     "admin_orders",
     "admin_order",
     "admin_user",
@@ -40,6 +47,7 @@ def _argument(message: Message) -> str | None:
 def _admin_help() -> str:
     return (
         "🛠 <b>Админ-команды</b>\n\n"
+        "/admin_stats — статистика бота\n"
         "/admin_orders — последние заказы\n"
         "/admin_order &lt;ID&gt; — карточка заказа\n"
         "/admin_user &lt;Telegram ID&gt; — пользователь\n"
@@ -60,6 +68,11 @@ async def admin_commands(message: Message, bot: Bot) -> None:
 
     if command == "/admin":
         await message.answer(_admin_help())
+        return
+
+    if command == "/admin_stats":
+        stats = await get_admin_stats()
+        await message.answer(format_admin_stats(stats))
         return
 
     if command == "/admin_orders":

@@ -4,7 +4,7 @@ from html import escape
 from aiogram import Bot
 
 from bot.config import get_settings
-from bot.database.admin import AdminOrderRecord, AdminUserRecord
+from bot.database.admin import AdminCountItem, AdminOrderRecord, AdminStatsRecord, AdminUserRecord
 from bot.services.orders import service_label, status_label
 
 logger = logging.getLogger(__name__)
@@ -61,4 +61,37 @@ def format_admin_user(record: AdminUserRecord) -> str:
         f"Имя профиля: {profile_name}\n"
         f"Заказов: {record.orders_count}\n"
         f"Создан: {user.created_at:%d.%m.%Y %H:%M}"
+    )
+
+
+def _format_count_items(
+    items: list[AdminCountItem],
+    label_factory,
+) -> str:
+    if not items:
+        return "—"
+    return "\n".join(
+        f"• {label_factory(item.key)}: <b>{item.count}</b>"
+        for item in items
+    )
+
+
+def format_admin_stats(stats: AdminStatsRecord) -> str:
+    service_lines = _format_count_items(stats.service_counts, service_label)
+    status_lines = _format_count_items(stats.status_counts, status_label)
+    return (
+        "📊 <b>Статистика бота</b>\n\n"
+        f"👥 Пользователи: <b>{stats.users_total}</b>"
+        f" · сегодня +{stats.users_today}\n"
+        f"👤 Профили: <b>{stats.profiles_total}</b>\n"
+        f"📦 Заказы: <b>{stats.orders_total}</b>"
+        f" · сегодня +{stats.orders_today}\n"
+        f"⏳ Активные заказы: <b>{stats.active_orders_total}</b>\n"
+        f"⚠️ Ошибки: <b>{stats.failed_orders_total}</b>\n\n"
+        f"⭐ Оплачено: <b>{stats.paid_stars_total}</b> Stars"
+        f" · платежей: {stats.paid_payments_total}\n"
+        f"↩️ Возвраты: <b>{stats.refunded_stars_total}</b> Stars"
+        f" · платежей: {stats.refunded_payments_total}\n\n"
+        f"🔥 <b>Услуги</b>\n{service_lines}\n\n"
+        f"📌 <b>Статусы заказов</b>\n{status_lines}"
     )

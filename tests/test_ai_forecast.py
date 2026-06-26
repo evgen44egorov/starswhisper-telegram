@@ -3,7 +3,7 @@ from datetime import date
 
 from bot.config import Settings
 from bot.database.models import Profile
-from bot.services.ai import AstrobotAIService
+from bot.services.ai import AstrobotAIService, _clean_result, _looks_like_mojibake
 from bot.services.prompts import (
     build_compatibility_input,
     build_daily_forecast_input,
@@ -293,6 +293,18 @@ class DemoForecastTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.is_demo)
         self.assertIn("Число жизненного пути — 3", result.text)
         self.assertIn("Личный год — 1", result.text)
+
+
+class AIResultCleaningTests(unittest.TestCase):
+    def test_clean_result_removes_control_chars_and_markdown(self) -> None:
+        self.assertEqual(
+            _clean_result(" **Привет**\x00\n__Анна__ "),
+            "Привет\nАнна",
+        )
+
+    def test_detects_mojibake_artifacts(self) -> None:
+        self.assertFalse(_looks_like_mojibake("Привет, Анна ✨"))
+        self.assertTrue(_looks_like_mojibake("ÐŸÑ€Ð¸Ð²ÐµÑ‚, ÐÐ½Ð½Ð° âœ¨"))
 
 
 class QuestionSafetyTests(unittest.TestCase):

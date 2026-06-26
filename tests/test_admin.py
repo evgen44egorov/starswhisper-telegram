@@ -12,6 +12,7 @@ from bot.database.admin import (
     claim_order_retry,
     finish_order_refund,
     get_admin_order,
+    get_admin_stats,
     get_admin_user,
     list_admin_orders,
 )
@@ -22,7 +23,7 @@ from bot.database.repositories import (
     save_profile,
 )
 from bot.database.session import close_database, configure_database, init_database
-from bot.services.admin import format_admin_order, is_admin
+from bot.services.admin import format_admin_order, format_admin_stats, is_admin
 
 
 def make_settings(admin_id: int | None) -> Settings:
@@ -99,6 +100,21 @@ class AdminRepositoryTests(unittest.IsolatedAsyncioTestCase):
         user = await get_admin_user(self.telegram_id)
         self.assertIsNotNone(user)
         self.assertEqual(user.orders_count, 1)
+
+    async def test_collects_admin_stats(self) -> None:
+        await self.create_paid_order("charge-stats")
+
+        stats = await get_admin_stats()
+        formatted = format_admin_stats(stats)
+
+        self.assertEqual(stats.users_total, 1)
+        self.assertEqual(stats.profiles_total, 1)
+        self.assertEqual(stats.orders_total, 1)
+        self.assertEqual(stats.paid_payments_total, 1)
+        self.assertEqual(stats.paid_stars_total, 1)
+        self.assertEqual(stats.service_counts[0].key, "personal_question")
+        self.assertIn("Статистика бота", formatted)
+        self.assertIn("Stars", formatted)
 
     async def test_retry_claim_is_available_once_for_failed_paid_order(self) -> None:
         order = await self.create_paid_order("charge-retry")

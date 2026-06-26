@@ -18,7 +18,9 @@ from bot.database.session import close_database, configure_database, init_databa
 from bot.services.payments import (
     PaymentServiceError,
     effective_price,
+    has_admin_free_access,
     payment_note,
+    payment_required,
     public_price_label,
     validate_payments_configuration,
 )
@@ -57,6 +59,26 @@ class PaymentSettingsTests(unittest.TestCase):
         self.assertEqual(
             public_price_label("personal_question", stars_test),
             "цена 350 Stars · сейчас 1 Star",
+        )
+
+    def test_admin_can_check_paid_services_without_payment(self) -> None:
+        settings = make_settings(
+            PAYMENTS_MODE="stars",
+            ADMIN_TELEGRAM_ID=123456,
+            SUPPORT_USERNAME="astrobot_support",
+        )
+
+        self.assertTrue(has_admin_free_access(123456, settings))
+        self.assertFalse(has_admin_free_access(654321, settings))
+        self.assertFalse(payment_required(settings, 123456))
+        self.assertTrue(payment_required(settings, 654321))
+        self.assertIn(
+            "Админ-проверка",
+            payment_note("personal_question", settings, 123456),
+        )
+        self.assertIn(
+            "К оплате: 350 Stars",
+            payment_note("personal_question", settings, 654321),
         )
 
     def test_live_mode_requires_support(self) -> None:
