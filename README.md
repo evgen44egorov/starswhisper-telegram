@@ -157,3 +157,27 @@ journalctl -u astrobot -n 100 --no-pager
 ```bash
 systemctl restart astrobot
 ```
+
+## Бэкапы базы
+
+На сервере можно включить ежедневные бэкапы SQLite-базы:
+
+```bash
+cd /opt/astrobot/app
+bash deploy/setup_server_backups.sh
+```
+
+После настройки сервер каждый день создаёт копию `/opt/astrobot/app/astrobot.db` в `/opt/astrobot/backups` и хранит последние 14 дней.
+
+Проверить бэкапы:
+
+```bash
+ls -lh /opt/astrobot/backups
+systemctl list-timers --all | grep astrobot-backup
+```
+
+Скачать бэкап на компьютер можно через PowerShell:
+
+```powershell
+scp -i "$env:USERPROFILE\.ssh\astrobot_digitalocean" root@46.101.193.95:/opt/astrobot/backups/ИМЯ_ФАЙЛА.db .
+```
