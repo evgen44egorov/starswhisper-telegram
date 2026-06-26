@@ -26,9 +26,9 @@ from bot.services.numerology import calculate_numerology
 from bot.services.payments import (
     PaymentServiceError,
     payment_note,
+    payment_required,
     profile_snapshot,
     send_stars_invoice,
-    stars_enabled,
 )
 from bot.services.screens import show_screen
 from bot.states.numerology import NumerologyForm
@@ -81,10 +81,12 @@ async def show_numerology_confirmation(
         source,
         NUMEROLOGY_CONFIRM_TEXT.format(
             period=escape(str(data["period"])),
-            payment_note=payment_note("numerology", settings),
+            payment_note=payment_note("numerology", settings, telegram_id),
             **numbers,
         ),
-        reply_markup=numerology_confirmation_keyboard(stars_enabled(settings)),
+        reply_markup=numerology_confirmation_keyboard(
+            payment_required(settings, telegram_id)
+        ),
     )
 
 
@@ -174,7 +176,7 @@ async def confirm_numerology(message: Message, state: FSMContext) -> None:
         "profile": profile_snapshot(profile),
     }
     settings = get_settings()
-    if stars_enabled(settings):
+    if payment_required(settings, message.from_user.id):
         await state.clear()
         try:
             await send_stars_invoice(

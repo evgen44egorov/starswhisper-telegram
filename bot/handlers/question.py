@@ -30,9 +30,9 @@ from bot.services.ai import AIServiceError, AstrobotAIService
 from bot.services.payments import (
     PaymentServiceError,
     payment_note,
+    payment_required,
     profile_snapshot,
     send_stars_invoice,
-    stars_enabled,
 )
 from bot.services.screens import show_screen
 from bot.states.question import QuestionForm
@@ -87,14 +87,17 @@ async def show_question_confirmation(source: Message, state: FSMContext) -> None
         else QUESTION_CONFIRM_OPENAI_TEXT
     )
     await state.set_state(QuestionForm.confirm)
+    telegram_id = source.from_user.id if source.from_user else None
     await show_screen(
         source,
         template.format(
             area=escape(data["area"]),
             question=escape(data["question"]),
-            payment_note=payment_note("personal_question", settings),
+            payment_note=payment_note("personal_question", settings, telegram_id),
         ),
-        reply_markup=question_confirmation_keyboard(stars_enabled(settings)),
+        reply_markup=question_confirmation_keyboard(
+            payment_required(settings, telegram_id)
+        ),
     )
 
 
@@ -215,7 +218,7 @@ async def confirm_question(message: Message, state: FSMContext) -> None:
         return
 
     settings = get_settings()
-    if stars_enabled(settings):
+    if payment_required(settings, message.from_user.id):
         await state.clear()
         try:
             await send_stars_invoice(

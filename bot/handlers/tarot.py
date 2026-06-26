@@ -27,9 +27,9 @@ from bot.services.ai import AIServiceError, AstrobotAIService
 from bot.services.payments import (
     PaymentServiceError,
     payment_note,
+    payment_required,
     profile_snapshot,
     send_stars_invoice,
-    stars_enabled,
 )
 from bot.services.screens import show_screen
 from bot.services.tarot import draw_tarot_cards
@@ -69,6 +69,7 @@ async def begin_tarot(source: Message, state: FSMContext, telegram_id: int) -> N
 async def show_tarot_confirmation(source: Message, state: FSMContext) -> None:
     data = await state.get_data()
     settings = get_settings()
+    telegram_id = source.from_user.id if source.from_user else None
     await state.set_state(TarotForm.confirm)
     await show_screen(
         source,
@@ -76,9 +77,11 @@ async def show_tarot_confirmation(source: Message, state: FSMContext) -> None:
             spread=escape(str(data["spread"])),
             area=escape(str(data["area"])),
             question=escape(str(data["question"])),
-            payment_note=payment_note("tarot_astrology", settings),
+            payment_note=payment_note("tarot_astrology", settings, telegram_id),
         ),
-        reply_markup=tarot_confirmation_keyboard(stars_enabled(settings)),
+        reply_markup=tarot_confirmation_keyboard(
+            payment_required(settings, telegram_id)
+        ),
     )
 
 
@@ -205,7 +208,7 @@ async def confirm_tarot(message: Message, state: FSMContext) -> None:
         "profile": profile_snapshot(profile),
     }
     settings = get_settings()
-    if stars_enabled(settings):
+    if payment_required(settings, message.from_user.id):
         await state.clear()
         try:
             await send_stars_invoice(

@@ -86,6 +86,18 @@ def stars_enabled(settings: Settings) -> bool:
     return payments_mode(settings) in {"stars_test", "stars"}
 
 
+def has_admin_free_access(telegram_id: int | None, settings: Settings) -> bool:
+    return (
+        telegram_id is not None
+        and settings.admin_telegram_id is not None
+        and telegram_id == settings.admin_telegram_id
+    )
+
+
+def payment_required(settings: Settings, telegram_id: int | None) -> bool:
+    return stars_enabled(settings) and not has_admin_free_access(telegram_id, settings)
+
+
 def effective_price(service_code: str, settings: Settings) -> int:
     spec = PAYMENT_CATALOG[service_code]
     return 1 if payments_mode(settings) == "stars_test" else spec.price_stars
@@ -101,9 +113,18 @@ def public_price_label(service_code: str, settings: Settings) -> str:
     return f"цена {spec.price_stars} Stars"
 
 
-def payment_note(service_code: str, settings: Settings) -> str:
+def payment_note(
+    service_code: str,
+    settings: Settings,
+    telegram_id: int | None = None,
+) -> str:
     mode = payments_mode(settings)
     spec = PAYMENT_CATALOG[service_code]
+    if has_admin_free_access(telegram_id, settings):
+        return (
+            f"🛠 Админ-проверка: оплата не нужна. Обычная цена для пользователей: "
+            f"{spec.price_stars} Stars. Условия: /terms"
+        )
     if mode == "stars_test":
         return (
             "🧪 Тестовая оплата: 1 Star. Это реальное списание одной звезды. "

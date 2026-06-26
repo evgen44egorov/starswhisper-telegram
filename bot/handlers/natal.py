@@ -32,8 +32,8 @@ from bot.services.ai import AIServiceError, AstrobotAIService
 from bot.services.payments import (
     PaymentServiceError,
     payment_note,
+    payment_required,
     send_stars_invoice,
-    stars_enabled,
 )
 from bot.services.results import send_order_result
 from bot.services.screens import clear_screen, remember_screen, show_screen
@@ -191,9 +191,11 @@ async def show_natal_confirmation(
             life_stage=escape(NATAL_LIFE_STAGES.get(life_key, NATAL_LIFE_STAGES["stable"])),
             focus=escape(NATAL_FOCUSES.get(focus_key, NATAL_FOCUSES["full"])),
             subfocus=escape(subfocuses.get(subfocus_key, next(iter(subfocuses.values())))),
-            payment_note=payment_note("natal_chart", settings),
+            payment_note=payment_note("natal_chart", settings, telegram_id),
         ),
-        reply_markup=natal_confirmation_keyboard(stars_enabled(settings)),
+        reply_markup=natal_confirmation_keyboard(
+            payment_required(settings, telegram_id)
+        ),
     )
 
 
@@ -489,7 +491,7 @@ async def confirm_natal(callback: CallbackQuery, state: FSMContext) -> None:
     )
     settings = get_settings()
 
-    if stars_enabled(settings):
+    if payment_required(settings, callback.from_user.id):
         await state.clear()
         try:
             await send_stars_invoice(

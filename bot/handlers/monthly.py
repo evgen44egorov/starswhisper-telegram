@@ -33,9 +33,9 @@ from bot.services.ai import AIServiceError, AstrobotAIService
 from bot.services.payments import (
     PaymentServiceError,
     payment_note,
+    payment_required,
     profile_snapshot,
     send_stars_invoice,
-    stars_enabled,
 )
 from bot.services.screens import show_screen
 from bot.states.monthly import MonthlyForecastForm
@@ -88,14 +88,17 @@ async def show_monthly_confirmation(source: Message, state: FSMContext) -> None:
         else MONTHLY_CONFIRM_OPENAI_TEXT
     )
     await state.set_state(MonthlyForecastForm.confirm)
+    telegram_id = source.from_user.id if source.from_user else None
     await show_screen(
         source,
         template.format(
             period=escape(data["period_label"]),
             area=escape(data["area"]),
-            payment_note=payment_note("monthly_forecast", settings),
+            payment_note=payment_note("monthly_forecast", settings, telegram_id),
         ),
-        reply_markup=monthly_confirmation_keyboard(stars_enabled(settings)),
+        reply_markup=monthly_confirmation_keyboard(
+            payment_required(settings, telegram_id)
+        ),
     )
 
 
@@ -219,7 +222,7 @@ async def confirm_monthly(message: Message, state: FSMContext) -> None:
         "area": data["area"],
         "profile": profile_snapshot(profile),
     }
-    if stars_enabled(settings):
+    if payment_required(settings, message.from_user.id):
         await state.clear()
         try:
             await send_stars_invoice(
