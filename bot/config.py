@@ -22,10 +22,10 @@ class Settings(BaseSettings):
         le=180,
     )
     ai_max_output_tokens: int = Field(
-        default=900,
+        default=1200,
         alias="AI_MAX_OUTPUT_TOKENS",
         ge=200,
-        le=2000,
+        le=4000,
     )
     payments_mode: str = Field(default="demo", alias="PAYMENTS_MODE")
     support_username: str | None = Field(default=None, alias="SUPPORT_USERNAME")

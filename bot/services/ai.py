@@ -1,6 +1,8 @@
 import asyncio
 import hashlib
 import logging
+import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 
@@ -34,6 +36,22 @@ from bot.services.prompts import (
 from bot.utils.zodiac import get_zodiac_element, get_zodiac_sign
 
 logger = logging.getLogger(__name__)
+
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+_MOJIBAKE_PATTERNS = (
+    "Ð",
+    "Ñ",
+    "Â",
+    "â€",
+    "â€™",
+    "â€œ",
+    "â€",
+    "â€¦",
+    "â€”",
+    "â€“",
+    "âœ",
+    "ðŸ",
+)
 
 
 class AIServiceError(RuntimeError):
@@ -104,6 +122,8 @@ class AstrobotAIService:
                 question_text,
                 current_date,
             ),
+            max_output_tokens=max(self.settings.ai_max_output_tokens, 1400),
+            max_chars=4500,
         )
         return AIResult(
             text=result_text,
@@ -149,6 +169,8 @@ class AstrobotAIService:
                 partner_birth_place=partner_birth_place,
                 current_date=current_date,
             ),
+            max_output_tokens=max(self.settings.ai_max_output_tokens, 1600),
+            max_chars=5200,
         )
         return AIResult(
             text=result_text,
@@ -183,6 +205,8 @@ class AstrobotAIService:
                 area,
                 current_date,
             ),
+            max_output_tokens=max(self.settings.ai_max_output_tokens, 1500),
+            max_chars=5000,
         )
         return AIResult(
             text=result_text,
@@ -229,8 +253,8 @@ class AstrobotAIService:
                 time_period=time_period,
                 current_date=current_date,
             ),
-            max_output_tokens=max(self.settings.ai_max_output_tokens, 2400),
-            max_chars=8500,
+            max_output_tokens=max(self.settings.ai_max_output_tokens, 2600),
+            max_chars=9000,
         )
         return AIResult(
             text=result_text,
@@ -268,6 +292,7 @@ class AstrobotAIService:
                 cards=cards,
                 current_date=current_date,
             ),
+            max_output_tokens=max(self.settings.ai_max_output_tokens, 1400),
             max_chars=3800,
         )
         return AIResult(
@@ -297,6 +322,8 @@ class AstrobotAIService:
         result_text = await self._generate_openai(
             instructions=NUMEROLOGY_INSTRUCTIONS,
             input_text=build_numerology_input(profile, period, numbers, current_date),
+            max_output_tokens=max(self.settings.ai_max_output_tokens, 1400),
+            max_chars=4500,
         )
         return AIResult(
             text=result_text,
@@ -345,8 +372,12 @@ class AstrobotAIService:
                     result_text = _clean_result(response.output_text, max_chars=max_chars)
                     if not result_text:
                         raise AIServiceError("AI вернул пустой ответ")
+                    if _looks_like_mojibake(result_text):
+                        raise AIServiceError(
+                            "AI вернул текст с признаками повреждённой кодировки"
+                        )
                     return result_text
-                except OpenAIError as error:
+                except (OpenAIError, AIServiceError) as error:
                     logger.warning(
                         "Ошибка OpenAI при генерации прогноза, попытка %s: %s",
                         attempt + 1,
@@ -355,6 +386,8 @@ class AstrobotAIService:
                     if attempt == 0:
                         await asyncio.sleep(1)
                         continue
+                    if isinstance(error, AIServiceError):
+                        raise error
                     raise AIServiceError("Не удалось получить ответ от AI-сервиса") from error
         finally:
             await client.close()
@@ -363,10 +396,22 @@ class AstrobotAIService:
 
 
 def _clean_result(value: str | None, max_chars: int = 3400) -> str:
-    text = (value or "").strip().replace("**", "").replace("__", "")
+    text = unicodedata.normalize("NFC", value or "")
+    text = _CONTROL_CHARS_RE.sub("", text)
+    text = text.strip().replace("**", "").replace("__", "")
     if len(text) > max_chars:
         text = text[:max_chars].rsplit(" ", maxsplit=1)[0].rstrip() + "…"
     return text
+
+
+def _looks_like_mojibake(value: str) -> bool:
+    """Detect common UTF-8-as-Windows-1252 artifacts in Russian answers."""
+    if not value:
+        return False
+    hits = sum(value.count(pattern) for pattern in _MOJIBAKE_PATTERNS)
+    if hits >= 2:
+        return True
+    return bool(re.search(r"[ÐÑÂ]{2,}|â[€œ€™€¦–—]|ðŸ", value))
 
 
 def _build_demo_forecast(profile: Profile, current_date: date) -> str:
