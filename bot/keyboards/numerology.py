@@ -12,7 +12,7 @@ NUMEROLOGY_PERIODS = {
     "🗓 На текущий год": "Прогноз на текущий год",
 }
 
-CONFIRM_NUMEROLOGY_BUTTON = "✨ Получить тестовый разбор"
+CONFIRM_NUMEROLOGY_BUTTON = "✨ Получить разбор"
 PAY_NUMEROLOGY_BUTTON = "⭐ Перейти к оплате"
 RESTART_NUMEROLOGY_BUTTON = "✏️ Выбрать заново"
 CANCEL_NUMEROLOGY_BUTTON = "↩️ Отмена"

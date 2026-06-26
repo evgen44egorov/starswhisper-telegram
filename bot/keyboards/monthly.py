@@ -23,7 +23,7 @@ MONTH_AREAS = {
     EMOTIONS_MONTH_AREA: "Эмоциональное состояние",
 }
 
-CONFIRM_MONTHLY_BUTTON = "✨ Получить тестовый прогноз"
+CONFIRM_MONTHLY_BUTTON = "✨ Получить прогноз"
 PAY_MONTHLY_BUTTON = "⭐ Перейти к оплате"
 RESTART_MONTHLY_BUTTON = "✏️ Выбрать заново"
 CANCEL_MONTHLY_BUTTON = "↩️ Отмена"

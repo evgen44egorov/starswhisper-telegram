@@ -207,7 +207,7 @@ def natal_subfocus_keyboard(focus: str) -> InlineKeyboardMarkup:
 
 
 def natal_confirmation_keyboard(payments_enabled: bool) -> InlineKeyboardMarkup:
-    action = "⭐ Перейти к оплате" if payments_enabled else "✨ Получить тестовую карту"
+    action = "⭐ Перейти к оплате" if payments_enabled else "✨ Получить карту"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=action, callback_data="natal:confirm")],

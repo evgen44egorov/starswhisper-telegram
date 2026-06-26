@@ -22,7 +22,7 @@ QUESTION_AREAS = {
 }
 
 CANCEL_QUESTION_BUTTON = "↩️ Отмена"
-CONFIRM_QUESTION_BUTTON = "✨ Получить тестовый ответ"
+CONFIRM_QUESTION_BUTTON = "✨ Получить ответ"
 PAY_QUESTION_BUTTON = "⭐ Перейти к оплате"
 EDIT_QUESTION_BUTTON = "✏️ Изменить вопрос"
 

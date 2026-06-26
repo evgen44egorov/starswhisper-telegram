@@ -19,7 +19,7 @@ TAROT_AREAS = {
     "🌱 Личный путь": "Самопознание и личный путь",
 }
 
-CONFIRM_TAROT_BUTTON = "✨ Получить тестовый расклад"
+CONFIRM_TAROT_BUTTON = "✨ Получить расклад"
 PAY_TAROT_BUTTON = "⭐ Перейти к оплате"
 RESTART_TAROT_BUTTON = "✏️ Выбрать заново"
 CANCEL_TAROT_BUTTON = "↩️ Отмена"
